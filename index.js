@@ -26,7 +26,6 @@ const client = new MongoClient(uri, {
 
 let programsCollection;
 let usersCollection;
-let songsCollection; // New: Declare songsCollection
 
 async function run() {
   try {
@@ -34,8 +33,7 @@ async function run() {
     const db = client.db("betar");
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
-    // New: Initialize songsCollection for CD Cut lookup
-    songsCollection = db.collection("songs_metadata");
+
 
     // Optional: Insert some dummy song data for testing CD Cut lookup
     // In a real application, this data would be populated through other means.
@@ -69,12 +67,7 @@ async function run() {
       }
     ];
 
-    // Insert dummy data only if the collection is empty
-    const songCount = await songsCollection.countDocuments();
-    if (songCount === 0) {
-      await songsCollection.insertMany(dummySongs);
-      console.log("✅ Dummy song data inserted.");
-    }
+
 
 
     console.log("✅ MongoDB connected");
@@ -280,7 +273,6 @@ app.get('/api/songs/byCdCut/:cdCut', authenticateToken, async (req, res) => {
   // const userId = req.user.id; // Currently not filtering by user for song metadata lookup
 
   try {
-    // Find a song in the songsCollection by its cdCut number
     const song = await programsCollection.findOne({ cdCut: cdCut });
 
     if (song) {
