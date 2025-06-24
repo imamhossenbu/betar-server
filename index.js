@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken'); // Import jsonwebtoken for creating tokens
 const port = process.env.PORT || 3000;
 
 // Middlewares
-app.use(cors());
+app.use(cors({ origin: 'https://betar-demo.vercel.app/' }));
 app.use(express.json());
 
 // MongoDB URI
