@@ -10,7 +10,7 @@ const port = process.env.PORT || 3000;
 
 // Middlewares
 // CORS configuration: Ensure the origin matches your frontend URL exactly
-app.use(cors({ origin: ['https://betar-demo.netlify.app', 'http://localhost:5173'] }));
+app.use(cors({ origin: ['https://betar-demo.vercel.app', 'https://betar-demo.netlify.app', 'http://localhost:5173'], credentials: true }));
 // Adjusted: Removed trailing slash
 app.use(express.json());
 
