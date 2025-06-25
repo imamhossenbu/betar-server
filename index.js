@@ -10,7 +10,23 @@ const port = process.env.PORT || 3000;
 
 // Middlewares
 // CORS configuration: Ensure the origin matches your frontend URL exactly
-app.use(cors({ origin: ['https://betar-demo.vercel.app', 'https://betar-demo.netlify.app', 'http://localhost:5173'], credentials: true }));
+const allowedOrigins = [
+  'https://betar-demo.vercel.app',
+  'https://betar-demo.netlify.app',
+  'http://localhost:5173'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 // Adjusted: Removed trailing slash
 app.use(express.json());
 
