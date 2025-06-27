@@ -182,7 +182,7 @@ app.put('/api/programs/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/programs/:id', verifyToken, async (req, res) => {
+app.delete('/api/programs/:id', async (req, res) => {
   try {
     const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
     if (result.deletedCount === 0) {
