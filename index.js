@@ -182,15 +182,19 @@ app.put('/api/programs/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/programs/:id', async (req, res) => {
+app.delete('/api/programs/:id', verifyToken, async (req, res) => {
   try {
     const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
-    result.deletedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json({ message: 'Deleted' });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Program not found.' });
+    }
+    res.json({ message: 'Program deleted successfully.' });
   } catch (err) {
     console.error('Error deleting program:', err);
-    res.status(500).json({ message: 'Server error during deletion' });
+    res.status(500).json({ message: 'Server error during deletion.' });
   }
 });
+
 
 app.post('/api/forgot-password', async (req, res) => {
   const { email } = req.body;
