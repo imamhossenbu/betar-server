@@ -93,7 +93,7 @@ app.post('/api/user', async (req, res) => {
   }
 });
 
-app.post('/api/programs', async (req, res) => {
+app.post('/api/programs', verifyToken, async (req, res) => {
   const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
   const userId = req.user?.uid;
   console.log(userId);
