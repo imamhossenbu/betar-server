@@ -96,6 +96,7 @@ app.post('/api/user', async (req, res) => {
 app.post('/api/programs', async (req, res) => {
   const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
   const userId = req.user?.uid;
+  console.log(userId);
 
   let missingFields = [];
   if (!programType) missingFields.push('programType');
@@ -181,9 +182,9 @@ app.put('/api/programs/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/programs/:id', verifyToken, async (req, res) => {
+app.delete('/api/programs/:id', async (req, res) => {
   try {
-    const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id), userId: req.user?.uid });
+    const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
     result.deletedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json({ message: 'Deleted' });
   } catch (err) {
     console.error('Error deleting program:', err);
