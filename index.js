@@ -242,10 +242,8 @@ app.post('/api/forgot-password', async (req, res) => {
 });
 
 
-app.get('/api/programs', verifyToken, async (req, res) => {
+app.get('/api/programs', async (req, res) => {
   const { day, shift } = req.query;
-  // Use req.user.uid (Firebase UID) as userId
-  const userId = req.user.uid;
   console.log(userId);
 
   if (!day || !shift) {
@@ -255,7 +253,7 @@ app.get('/api/programs', verifyToken, async (req, res) => {
   try {
     // Find programs using the string UID
     const programs = await programsCollection
-      .find({ day, shift, userId: userId })
+      .find({ day, shift })
       .sort({ orderIndex: 1 })
       .toArray();
     res.json(programs);
