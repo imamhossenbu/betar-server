@@ -244,7 +244,6 @@ app.post('/api/forgot-password', async (req, res) => {
 
 app.get('/api/programs', async (req, res) => {
   const { day, shift } = req.query;
-  console.log(userId);
 
   if (!day || !shift) {
     return res.status(400).json({ message: 'Day and Shift are required query parameters.' });
