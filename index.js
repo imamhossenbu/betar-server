@@ -285,7 +285,7 @@ app.get('/api/songs/byCdCut/:cdCut', verifyToken, async (req, res) => {
 });
 
 
-app.put('/api/programs/:id', verifyToken, async (req, res) => {
+app.put('/api/programs/:id', async (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
   // Use req.user.uid (Firebase UID) as userId
@@ -308,7 +308,7 @@ app.put('/api/programs/:id', verifyToken, async (req, res) => {
 
     // Update using the string UID
     const result = await programsCollection.updateOne(
-      { _id: new ObjectId(id), userId: userId },
+      { _id: new ObjectId(id) },
       { $set: fieldsToUpdate }
     );
     if (result.matchedCount === 0) {
