@@ -4,14 +4,13 @@ const app = express();
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const bcrypt = require('bcryptjs'); // Import bcryptjs for password hashing
 const jwt = require('jsonwebtoken'); // Import jsonwebtoken for creating tokens
 
 const port = process.env.PORT || 3000;
 
 // Middlewares
 // CORS configuration: Ensure the origin matches your frontend URL exactly
-app.use(cors({ origin: ['https://betar-demo.vercel.app', 'https://betar-demo.netlify.app', 'http://localhost:5173'], credentials: true }));
+app.use(cors({ origin: ['https://betar-demo.vercel.app', 'https://betar-demo.netlify.app', 'http://localhost:5173'], credentials: true, optionsSuccessStatus: 200 }));
 // Adjusted: Removed trailing slash
 app.use(express.json());
 app.use(cookieParser());
@@ -42,23 +41,21 @@ const convertBengaliToEnglishNumbers = (numString) => {
   }).join('');
 };
 
-const authenticateToken = (req, res, next) => {
-  const token = req.cookies?.token; // Read from HTTP-only cookie
+// Authentication Middleware - UPDATED to use 'uid' from JWT
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
 
-  if (!token) {
-    return res.status(401).json({ message: 'Authentication token required' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  if (!token) return res.status(401).send({ message: 'unauthorized' })
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
-      console.log('Token verification error:', err);
-      return res.status(403).json({ message: 'Invalid or expired token' });
+      return res.status(401).send({ message: 'unauthorized' })
     }
+    req.user = decoded;
 
-    req.user = user; // Store user data from token
     next();
-  });
-};
+  })
+
+}
 
 
 // Define Routes - OUTSIDE of the run() function
@@ -66,62 +63,53 @@ app.get('/', (req, res) => {
   res.send('Hello World!');
 });
 
-// app.post('/api/signup', async (req, res) => {
-//   const { email, username, password } = req.body;
 
-//   if (!email || !username || !password) {
-//     return res.status(400).json({ message: 'Please enter all fields' });
-//   }
 
-//   try {
-//     const existingUser = await usersCollection.findOne({ $or: [{ email }, { username }] });
-//     if (existingUser) {
-//       return res.status(400).json({ message: 'User with that email or username already exists' });
-//     }
 
-//     const salt = await bcrypt.genSalt(10);
-//     const hashedPassword = await bcrypt.hash(password, salt);
 
-//     const result = await usersCollection.insertOne({
-//       email,
-//       username,
-//       password: hashedPassword,
-//       createdAt: new Date(),
-//     });
-
-//     res.status(201).json({ message: 'User registered successfully', userId: result.insertedId });
-//   } catch (err) {
-//     console.error('Signup error:', err);
-//     res.status(500).json({ message: 'Server error during signup' });
-//   }
-// });
 
 // JWT Token Endpoint
 app.post('/jwt', (req, res) => {
   try {
-    const email = req.body;
-    const token = jwt.sign(email, process.env.JWT_SECRET, { expiresIn: '5h' });
-    res.cookie('token', token, {
+    const { email, uid } = req.body;
+
+    if (!email || !uid) {
+      return res.status(400).json({ message: 'Email and UID required.' });
+    }
+
+    const token = jwt.sign({ email, uid }, process.env.JWT_SECRET, { expiresIn: '5h' });
+
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-    }).send({ success: true });
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 5 * 60 * 60 * 1000,
+    };
+
+    res.cookie('token', token, cookieOptions).send({ success: true });
   } catch (error) {
+    console.error('JWT Error:', error);
     res.status(500).send({ message: 'Error generating token' });
   }
 });
 
+
 app.post('/api/logout', (req, res) => {
-  res
-    .clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-    })
-    .json({ message: 'Logged out successfully' });
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  }).send({ success: true });
 });
 
-// POST /api/user
+
+app.get('/api/debug', (req, res) => {
+  console.log("✅ /api/debug was hit");
+  res.send("Debug success");
+});
+
+
+// POST /api/user - This endpoint is good for syncing Firebase user data to MongoDB
 app.post('/api/user', async (req, res) => {
   const { uid, email, displayName } = req.body;
 
@@ -130,11 +118,9 @@ app.post('/api/user', async (req, res) => {
   }
 
   try {
-    // Check if user exists by Firebase UID or email
-    const existingUser = await usersCollection.findOne({ uid });
+    const existingUser = await usersCollection.findOne({ email });
 
     if (!existingUser) {
-      // Insert new user
       const result = await usersCollection.insertOne({
         uid,
         email,
@@ -144,7 +130,6 @@ app.post('/api/user', async (req, res) => {
       });
       return res.status(201).json({ message: 'User added', userId: result.insertedId });
     } else {
-      // Update lastLoginAt or displayName if needed
       await usersCollection.updateOne(
         { uid },
         { $set: { displayName: displayName || existingUser.displayName, lastLoginAt: new Date() } }
@@ -158,39 +143,7 @@ app.post('/api/user', async (req, res) => {
 });
 
 
-// app.post('/api/login', async (req, res) => {
-//   const { username, password } = req.body;
-
-//   if (!username || !password) {
-//     return res.status(400).json({ message: 'Please enter username and password' });
-//   }
-
-//   try {
-//     const user = await usersCollection.findOne({ username });
-//     if (!user) {
-//       return res.status(400).json({ message: 'Invalid credentials' });
-//     }
-
-//     const isMatch = await bcrypt.compare(password, user.password);
-//     if (!isMatch) {
-//       return res.status(400).json({ message: 'Invalid credentials' });
-//     }
-
-//     const token = jwt.sign(
-//       { id: user._id, username: user.username },
-//       process.env.JWT_SECRET,
-//       { expiresIn: '1h' }
-//     );
-
-//     res.json({ message: 'Logged in successfully', token, userId: user._id, username: user.username });
-//   } catch (err) {
-//     console.error('Login error:', err);
-//     res.status(500).json({ message: 'Server error during login' });
-//   }
-// });
-
-
-app.post('/api/programs', authenticateToken, async (req, res) => {
+app.post('/api/programs', verifyToken, async (req, res) => {
   const {
     serial, broadcastTime, programDetails,
     day, shift, period, programType,
@@ -198,7 +151,8 @@ app.post('/api/programs', authenticateToken, async (req, res) => {
     orderIndex
   } = req.body;
 
-  const userId = req.user.id;
+  // Use req.user.uid (Firebase UID) as userId
+  const userId = req.user?.uid;
   let missingFields = [];
 
   // Validate orderIndex and programType for all types
@@ -234,7 +188,7 @@ app.post('/api/programs', authenticateToken, async (req, res) => {
 
     // Core program data
     const programData = {
-      userId: new ObjectId(userId),
+      userId: userId, // Use the string UID directly
       serial: finalSerial || '',
       broadcastTime: broadcastTime || '',
       programDetails: programDetails || '',
@@ -276,21 +230,8 @@ app.post('/api/forgot-password', async (req, res) => {
     const user = await usersCollection.findOne({ email });
 
     if (!user) {
-      // Send a generic success message even if user not found to prevent email enumeration
       return res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
     }
-
-    // In a real application, you would generate a unique token, save it to the user
-    // document with an expiry, and send an email with a reset link.
-    // Example:
-    // const resetToken = crypto.randomBytes(32).toString('hex');
-    // const tokenExpiry = Date.now() + 3600000; // 1 hour
-    // await usersCollection.updateOne({ _id: user._id }, { $set: { resetToken, resetTokenExpiry } });
-    //
-    // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    //
-    // // Send email using Nodemailer, SendGrid, Mailgun etc.
-    // await sendEmail(user.email, 'Password Reset Request', `Click here to reset your password: ${resetLink}`);
 
     res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
 
@@ -301,28 +242,21 @@ app.post('/api/forgot-password', async (req, res) => {
 });
 
 
-
-app.get('/api/programs', authenticateToken, async (req, res) => {
+app.get('/api/programs', verifyToken, async (req, res) => {
   const { day, shift } = req.query;
-  const userId = req.user.id;
+  // Use req.user.uid (Firebase UID) as userId
+  const userId = req.user.uid;
+  console.log(userId);
 
   if (!day || !shift) {
     return res.status(400).json({ message: 'Day and Shift are required query parameters.' });
   }
-  const stringIdDocs = await programsCollection.find({ userId: { $type: 'string' } }).toArray();
-
-  for (const doc of stringIdDocs) {
-    const validId = doc.userId;
-    await programsCollection.updateOne(
-      { _id: doc._id },
-      { $set: { userId: new ObjectId(validId) } }
-    );
-  }
 
   try {
+    // Find programs using the string UID
     const programs = await programsCollection
-      .find({ day, shift, userId: new ObjectId(userId) })
-      .sort({ orderIndex: 1 }) // Sorting by orderIndex for persistent ordering
+      .find({ day, shift, userId: userId })
+      .sort({ orderIndex: 1 })
       .toArray();
     res.json(programs);
     console.log(programs);
@@ -333,17 +267,19 @@ app.get('/api/programs', authenticateToken, async (req, res) => {
 });
 
 // New API endpoint for fetching song data by CD Cut
-app.get('/api/songs/byCdCut/:cdCut', authenticateToken, async (req, res) => {
+app.get('/api/songs/byCdCut/:cdCut', verifyToken, async (req, res) => {
   const { cdCut } = req.params;
 
   try {
-    // Corrected: Use songsCollection for song metadata lookup
-    const song = await programsCollection.findOne({ cdCut: cdCut });
+    // Corrected: Use songsCollection for song metadata lookup if it's meant for general song data
+    // If this should retrieve a program that IS a song, then programsCollection is correct.
+    // Assuming it's a song entry within programsCollection
+    const song = await programsCollection.findOne({ cdCut: cdCut, programType: "Song" }); // Added programType filter
 
     if (song) {
       res.json(song);
     } else {
-      res.status(404).json({ message: 'Song not found for this CD Cut.' });
+      res.status(404).json({ message: 'Song program not found for this CD Cut.' });
     }
   } catch (err) {
     console.error('Error fetching song by CD Cut:', err);
@@ -352,10 +288,11 @@ app.get('/api/songs/byCdCut/:cdCut', authenticateToken, async (req, res) => {
 });
 
 
-app.put('/api/programs/:id', authenticateToken, async (req, res) => {
+app.put('/api/programs/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
-  const userId = req.user.id;
+  // Use req.user.uid (Firebase UID) as userId
+  const userId = req.user.uid;
 
   try {
     const { _id, ...fieldsToUpdate } = updateData;
@@ -364,7 +301,7 @@ app.put('/api/programs/:id', authenticateToken, async (req, res) => {
     if (fieldsToUpdate.serial && typeof fieldsToUpdate.serial === 'string' && bengaliNumericRegex.test(fieldsToUpdate.serial)) {
       fieldsToUpdate.serial = convertBengaliToEnglishNumbers(fieldsToUpdate.serial);
     }
-    if (fieldsToUpdate.serial === '') {
+    if (fieldsToUpdate.serial === '') { // Allow clearing serial
       fieldsToUpdate.serial = '';
     }
 
@@ -372,8 +309,9 @@ app.put('/api/programs/:id', authenticateToken, async (req, res) => {
       fieldsToUpdate.orderIndex = parseInt(fieldsToUpdate.orderIndex);
     }
 
+    // Update using the string UID
     const result = await programsCollection.updateOne(
-      { _id: new ObjectId(id), userId: new ObjectId(userId) },
+      { _id: new ObjectId(id), userId: userId },
       { $set: fieldsToUpdate }
     );
     if (result.matchedCount === 0) {
@@ -387,12 +325,14 @@ app.put('/api/programs/:id', authenticateToken, async (req, res) => {
 });
 
 
-app.delete('/api/programs/:id', authenticateToken, async (req, res) => {
+app.delete('/api/programs/:id', verifyToken, async (req, res) => {
   const { id } = req.params;
-  const userId = req.user.id;
+  // Use req.user.uid (Firebase UID) as userId
+  const userId = req.user?.uid;
 
   try {
-    const result = await programsCollection.deleteOne({ _id: new ObjectId(id), userId: new ObjectId(userId) });
+    // Delete using the string UID
+    const result = await programsCollection.deleteOne({ _id: new ObjectId(id), userId: userId });
     if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Program not found or you do not have permission to delete it.' });
     }
