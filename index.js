@@ -152,9 +152,9 @@ app.get('/api/programs', async (req, res) => {
   }
 });
 
-app.get('/api/songs/byCdCut/:cdCut', verifyToken, async (req, res) => {
+app.get('/api/songs/byCdCut/:cdCut', async (req, res) => {
   try {
-    const song = await programsCollection.findOne({ cdCut: req.params.cdCut, programType: 'Song' });
+    const song = await programsCollection.findOne({ cdCut: req.params.cdCut });
     song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
   } catch (err) {
     console.error('Error fetching song:', err);
