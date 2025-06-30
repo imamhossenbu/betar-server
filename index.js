@@ -125,8 +125,6 @@ async function startServer() {
 
     app.post('/api/programs', async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
-      const userId = req.user?.uid;
-      console.log(userId);
 
       let missingFields = [];
       if (!programType) missingFields.push('programType');
@@ -148,7 +146,6 @@ async function startServer() {
       try {
         const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
         const data = {
-          userId,
           serial: finalSerial || '',
           broadcastTime: broadcastTime || '',
           programDetails: programDetails || '',
