@@ -40,6 +40,7 @@ const convertBengaliToEnglishNumbers = (numString) => {
 
 const verifyToken = (req, res, next) => {
   const token = req.cookies?.token;
+  console.log('Received token:', token);
   if (!token) return res.status(401).send({ message: 'unauthorized' });
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
@@ -49,8 +50,13 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+
+
 // Routes
-app.get('/', (req, res) => res.send('Hello World!'));
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+  console.log(process.env.JWT_SECRET);
+});
 
 app.post('/jwt', (req, res) => {
   const { email, uid } = req.body;
@@ -93,7 +99,7 @@ app.post('/api/user', async (req, res) => {
   }
 });
 
-app.post('/api/programs', verifyToken, async (req, res) => {
+app.post('/api/programs', async (req, res) => {
   const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
   const userId = req.user?.uid;
   console.log(userId);
