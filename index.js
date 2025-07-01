@@ -222,6 +222,40 @@ async function startServer() {
       }
     });
 
+
+
+
+    app.get('/songs', async (req, res) => {
+      try {
+        const songs = await programsCollection
+          .find({ programType: 'Song' })
+          .sort({ cdCut: 1 }) // ascending order
+          .toArray();
+
+        res.status(200).json(songs);
+      } catch (err) {
+        console.error('Error fetching songs:', err);
+        res.status(500).json({ message: 'Server error during songs fetch.' });
+      }
+    });
+
+    app.delete('/songs/:id', async (req, res) => {
+      try {
+        const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: 'Song not found.' });
+        }
+
+        res.json({ message: 'Song deleted successfully.' });
+      } catch (err) {
+        console.error('Error deleting song:', err);
+        res.status(500).json({ message: 'Server error during deletion.' });
+      }
+    });
+
+
+
     const count = await songsCollection.countDocuments();
     if (count === 0) {
       await songsCollection.insertMany([
