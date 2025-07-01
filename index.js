@@ -70,7 +70,7 @@ app.post('/api/forgot-password', async (req, res) => {
 // Start server
 async function startServer() {
   try {
-    // await client.connect();
+    await client.connect();
     const db = client.db("betar");
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
@@ -230,7 +230,7 @@ async function startServer() {
         const songs = await programsCollection
           .find({
             programType: 'Song',
-            cdCut: { $nin: ['...', '', null] }// exclude where cdCut is "..."
+            cdCut: { $nin: ['...', '', null] }
           })
           .sort({ cdCut: 1 }) // sort by cdCut ascending
           .toArray();
