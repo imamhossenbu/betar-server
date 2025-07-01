@@ -228,8 +228,11 @@ async function startServer() {
     app.get('/songs', async (req, res) => {
       try {
         const songs = await programsCollection
-          .find({ programType: 'Song' })
-          .sort({ cdCut: 1 }) // ascending order
+          .find({
+            programType: 'Song',
+            cdCut: { $nin: ['...', '', null] }// exclude where cdCut is "..."
+          })
+          .sort({ cdCut: 1 }) // sort by cdCut ascending
           .toArray();
 
         res.status(200).json(songs);
@@ -238,6 +241,7 @@ async function startServer() {
         res.status(500).json({ message: 'Server error during songs fetch.' });
       }
     });
+
 
     app.delete('/songs/:id', async (req, res) => {
       try {
