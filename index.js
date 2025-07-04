@@ -41,23 +41,7 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-const verifyAdmin = (usersCollection) => {
-  return async (req, res, next) => {
-    const email = req.user?.email;
-    if (!email) return res.status(403).json({ message: 'Forbidden: No user info' });
 
-    try {
-      const user = await usersCollection.findOne({ email });
-      if (user?.role !== 'admin') {
-        return res.status(403).json({ message: 'Forbidden: Admins only' });
-      }
-      next();
-    } catch (err) {
-      console.error('Admin check error:', err);
-      res.status(500).json({ message: 'Server error during role check' });
-    }
-  };
-};
 
 // MongoDB Setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -85,6 +69,24 @@ async function startServer() {
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
     songsCollection = db.collection("songs_metadata");
+
+    const verifyAdmin = (usersCollection) => {
+      return async (req, res, next) => {
+        const email = req.user?.email;
+        if (!email) return res.status(403).json({ message: 'Forbidden: No user info' });
+
+        try {
+          const user = await usersCollection.findOne({ email });
+          if (user?.role !== 'admin') {
+            return res.status(403).json({ message: 'Forbidden: Admins only' });
+          }
+          next();
+        } catch (err) {
+          console.error('Admin check error:', err);
+          res.status(500).json({ message: 'Server error during role check' });
+        }
+      };
+    };
 
     // Import middleware AFTER collection init
     // const verifyAdmin = verifyAdmin(usersCollection);
@@ -118,7 +120,7 @@ async function startServer() {
     });
 
     // Users routes (public + protected)
-    app.post('/users', verifyToken, async (req, res) => {
+    app.post('/users', async (req, res) => {
       const user = req.body;
       const query = { email: user?.email };
       const existingUser = await usersCollection.findOne(query);
@@ -137,12 +139,12 @@ async function startServer() {
     });
 
     // Protected user routes — only admin can update roles or delete users
-    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+    app.get('/users', async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
 
-    app.patch('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+    app.patch('/users/:id', async (req, res) => {
       const { id } = req.params;
       const { role } = req.body;
       const result = await usersCollection.updateOne(
@@ -156,7 +158,7 @@ async function startServer() {
 
 
 
-    app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
+    app.delete('/users/:id', async (req, res) => {
       const { id } = req.params;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
