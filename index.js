@@ -86,12 +86,12 @@ async function startServer() {
       const { email, uid } = req.body;
       if (!email || !uid) return res.status(400).json({ message: 'Email and UID required.' });
 
-      const token = jwt.sign({ email, uid }, process.env.JWT_SECRET, { expiresIn: '5m' });
+      const token = jwt.sign({ email, uid }, process.env.JWT_SECRET, { expiresIn: '5h' });
       const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        maxAge: 5 * 60 * 1000,
+        maxAge: 5 * 60 * 60 * 1000,
       };
       res.cookie('token', token, cookieOptions).send({ success: true });
     });
