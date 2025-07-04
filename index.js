@@ -122,6 +122,28 @@ async function startServer() {
       res.send(result);
     });
 
+    app.get('/api/programs', async (req, res) => {
+      const { day, shift } = req.query;
+      if (!day || !shift) return res.status(400).json({ message: 'Day and Shift are required' });
+      try {
+        const programs = await programsCollection.find({ day, shift }).sort({ orderIndex: 1 }).toArray();
+        res.json(programs);
+      } catch (err) {
+        console.error('Error fetching programs:', err);
+        res.status(500).json({ message: 'Server error during program retrieval.' });
+      }
+    });
+
+    app.get('/api/songs/byCdCut/:cdCut', async (req, res) => {
+      try {
+        const song = await programsCollection.findOne({ cdCut: req.params.cdCut });
+        song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
+      } catch (err) {
+        console.error('Error fetching song:', err);
+        res.status(500).json({ message: 'Server error during song fetch' });
+      }
+    });
+
     // Programs routes with admin protection for add/update/delete
     app.post('/api/programs', verifyToken, verifyAdminMiddleware, async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
