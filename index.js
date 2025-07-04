@@ -5,8 +5,10 @@ const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 
-const verifyToken = require('./middlewares/verifyToken');
-const verifyAdmin = require('./middlewares/verifyAdmin');
+// const verifyToken = require('./middlewares/verifyToken');
+// const verifyAdmin = require('./middlewares/verifyAdmin');
+
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -22,6 +24,40 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.status(401).json({ message: 'Unauthorized: Token missing' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    console.log(process.env.JWT_SECRET);
+    if (err) return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+
+    req.user = decoded; // contains email, uid
+    next();
+  });
+};
+
+const verifyAdmin = (usersCollection) => {
+  return async (req, res, next) => {
+    const email = req.user?.email;
+    if (!email) return res.status(403).json({ message: 'Forbidden: No user info' });
+
+    try {
+      const user = await usersCollection.findOne({ email });
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden: Admins only' });
+      }
+      next();
+    } catch (err) {
+      console.error('Admin check error:', err);
+      res.status(500).json({ message: 'Server error during role check' });
+    }
+  };
+};
 
 // MongoDB Setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -51,7 +87,7 @@ async function startServer() {
     songsCollection = db.collection("songs_metadata");
 
     // Import middleware AFTER collection init
-    const verifyAdminMiddleware = verifyAdmin(usersCollection);
+    // const verifyAdmin = verifyAdmin(usersCollection);
 
     // Routes
     app.get('/', (req, res) => {
@@ -101,12 +137,12 @@ async function startServer() {
     });
 
     // Protected user routes — only admin can update roles or delete users
-    app.get('/users', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
 
-    app.patch('/users/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.patch('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const { role } = req.body;
       const result = await usersCollection.updateOne(
@@ -120,7 +156,7 @@ async function startServer() {
 
 
 
-    app.delete('/users/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
@@ -149,7 +185,7 @@ async function startServer() {
     });
 
     // Programs routes with admin protection for add/update/delete
-    app.post('/api/programs', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.post('/api/programs', verifyToken, verifyAdmin, async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
       let missingFields = [];
@@ -193,7 +229,7 @@ async function startServer() {
       }
     });
 
-    app.put('/api/programs/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.put('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
@@ -213,7 +249,7 @@ async function startServer() {
       }
     });
 
-    app.delete('/api/programs/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.delete('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) {
@@ -245,7 +281,7 @@ async function startServer() {
     });
 
     // Delete song (admin only)
-    app.delete('/songs/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.delete('/songs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
 
