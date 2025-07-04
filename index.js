@@ -4,6 +4,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
+const admin = require('./firebaseAdmin');
 
 const verifyToken = require('./middlewares/verifyToken');
 const verifyAdmin = require('./middlewares/verifyAdmin');
@@ -115,6 +116,28 @@ async function startServer() {
       );
       res.send(result);
     });
+
+
+    app.delete('/firebase-users/:uid', verifyToken, async (req, res) => {
+      const { uid } = req.params;
+
+      // Optional: Check if the user making the request is an admin
+      const requesterEmail = req.user.email;
+      const requester = await usersCollection.findOne({ email: requesterEmail });
+
+      if (requester?.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+
+      try {
+        await admin.auth().deleteUser(uid);
+        res.send({ success: true, message: 'Firebase user deleted' });
+      } catch (error) {
+        console.error('Firebase deletion failed:', error);
+        res.status(500).json({ success: false, message: 'Firebase deletion error' });
+      }
+    });
+
 
     app.delete('/users/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
       const { id } = req.params;
