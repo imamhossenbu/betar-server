@@ -1,11 +1,14 @@
 require('dotenv').config();
 const express = require('express');
-const app = express();
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 
+const verifyToken = require('./middlewares/verifyToken');
+const verifyAdmin = require('./middlewares/verifyAdmin');
+
+const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
@@ -38,36 +41,7 @@ const convertBengaliToEnglishNumbers = (numString) => {
   return String(numString).split('').map(d => ben.includes(d) ? eng[ben.indexOf(d)] : d).join('');
 };
 
-const verifyToken = (req, res, next) => {
-  const token = req.cookies?.token;
-  console.log('Received token:', token);
-  if (!token) return res.status(401).send({ message: 'unauthorized' });
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).send({ message: 'unauthorized' });
-    req.user = decoded;
-    next();
-  });
-};
-
-
-
-
-
-
-app.post('/api/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: 'Email is required' });
-  try {
-    const user = await usersCollection.findOne({ email });
-    res.status(200).json({ message: 'Reset link sent if account exists' });
-  } catch (err) {
-    console.error('Error in forgot-password:', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Start server
+// Async start function to connect DB and setup collections
 async function startServer() {
   try {
     await client.connect();
@@ -75,6 +49,9 @@ async function startServer() {
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
     songsCollection = db.collection("songs_metadata");
+
+    // Import middleware AFTER collection init
+    const verifyAdminMiddleware = verifyAdmin(usersCollection);
 
     // Routes
     app.get('/', (req, res) => {
@@ -104,25 +81,7 @@ async function startServer() {
       }).send({ success: true });
     });
 
-    // app.post('/api/user', async (req, res) => {
-    //   const { uid, email, displayName } = req.body;
-    //   if (!uid || !email) return res.status(400).json({ message: 'UID and email are required' });
-
-    //   try {
-    //     const existingUser = await usersCollection.findOne({ email });
-    //     if (!existingUser) {
-    //       const result = await usersCollection.insertOne({ uid, email, displayName: displayName || '', createdAt: new Date(), lastLoginAt: new Date() });
-    //       return res.status(201).json({ message: 'User added', userId: result.insertedId });
-    //     } else {
-    //       await usersCollection.updateOne({ uid }, { $set: { displayName: displayName || existingUser.displayName, lastLoginAt: new Date() } });
-    //       return res.json({ message: 'User updated' });
-    //     }
-    //   } catch (err) {
-    //     console.error('Error syncing user:', err);
-    //     res.status(500).json({ message: 'Server error syncing user' });
-    //   }
-    // });
-
+    // Users routes (public + protected)
     app.post('/users', async (req, res) => {
       const user = req.body;
       const query = { email: user?.email };
@@ -133,23 +92,21 @@ async function startServer() {
       }
       const result = await usersCollection.insertOne(user);
       res.send(result);
-    })
+    });
 
     app.get('/users/admin/:email', async (req, res) => {
       const email = req.params.email;
       const user = await usersCollection.findOne({ email });
-
       res.send({ isAdmin: user?.role === 'admin' });
     });
 
-    // GET all users (only for admin)
-    app.get('/users', async (req, res) => {
+    // Protected user routes — only admin can update roles or delete users
+    app.get('/users', verifyToken, verifyAdminMiddleware, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
 
-
-    app.patch('/users/:id', async (req, res) => {
+    app.patch('/users/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
       const { id } = req.params;
       const { role } = req.body;
       const result = await usersCollection.updateOne(
@@ -159,15 +116,14 @@ async function startServer() {
       res.send(result);
     });
 
-
-    app.delete('/users/:id', async (req, res) => {
+    app.delete('/users/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
       const { id } = req.params;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
 
-
-    app.post('/api/programs', async (req, res) => {
+    // Programs routes with admin protection for add/update/delete
+    app.post('/api/programs', verifyToken, verifyAdminMiddleware, async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
       let missingFields = [];
@@ -211,29 +167,7 @@ async function startServer() {
       }
     });
 
-    app.get('/api/programs', async (req, res) => {
-      const { day, shift } = req.query;
-      if (!day || !shift) return res.status(400).json({ message: 'Day and Shift are required' });
-      try {
-        const programs = await programsCollection.find({ day, shift }).sort({ orderIndex: 1 }).toArray();
-        res.json(programs);
-      } catch (err) {
-        console.error('Error fetching programs:', err);
-        res.status(500).json({ message: 'Server error during program retrieval.' });
-      }
-    });
-
-    app.get('/api/songs/byCdCut/:cdCut', async (req, res) => {
-      try {
-        const song = await programsCollection.findOne({ cdCut: req.params.cdCut });
-        song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
-      } catch (err) {
-        console.error('Error fetching song:', err);
-        res.status(500).json({ message: 'Server error during song fetch' });
-      }
-    });
-
-    app.put('/api/programs/:id', async (req, res) => {
+    app.put('/api/programs/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
@@ -253,7 +187,7 @@ async function startServer() {
       }
     });
 
-    app.delete('/api/programs/:id', async (req, res) => {
+    app.delete('/api/programs/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) {
@@ -266,9 +200,7 @@ async function startServer() {
       }
     });
 
-
-
-
+    // Public song fetch route (no auth)
     app.get('/songs', async (req, res) => {
       try {
         const songs = await programsCollection
@@ -276,7 +208,7 @@ async function startServer() {
             programType: 'Song',
             cdCut: { $nin: ['...', '', null] }
           })
-          .sort({ cdCut: 1 }) // sort by cdCut ascending
+          .sort({ cdCut: 1 })
           .toArray();
 
         res.status(200).json(songs);
@@ -286,8 +218,8 @@ async function startServer() {
       }
     });
 
-
-    app.delete('/songs/:id', async (req, res) => {
+    // Delete song (admin only)
+    app.delete('/songs/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
 
@@ -302,8 +234,7 @@ async function startServer() {
       }
     });
 
-
-
+    // Insert dummy songs if none exist
     const count = await songsCollection.countDocuments();
     if (count === 0) {
       await songsCollection.insertMany([
