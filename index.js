@@ -101,12 +101,12 @@ async function startServer() {
     });
 
     // Protected user routes — only admin can update roles or delete users
-    app.get('/users', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.get('/users', verifyAdminMiddleware, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
 
-    app.patch('/users/:id', verifyToken, verifyAdminMiddleware, async (req, res) => {
+    app.patch('/users/:id', verifyAdminMiddleware, async (req, res) => {
       const { id } = req.params;
       const { role } = req.body;
       const result = await usersCollection.updateOne(
