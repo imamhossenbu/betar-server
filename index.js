@@ -104,24 +104,36 @@ async function startServer() {
       }).send({ success: true });
     });
 
-    app.post('/api/user', async (req, res) => {
-      const { uid, email, displayName } = req.body;
-      if (!uid || !email) return res.status(400).json({ message: 'UID and email are required' });
+    // app.post('/api/user', async (req, res) => {
+    //   const { uid, email, displayName } = req.body;
+    //   if (!uid || !email) return res.status(400).json({ message: 'UID and email are required' });
 
-      try {
-        const existingUser = await usersCollection.findOne({ email });
-        if (!existingUser) {
-          const result = await usersCollection.insertOne({ uid, email, displayName: displayName || '', createdAt: new Date(), lastLoginAt: new Date() });
-          return res.status(201).json({ message: 'User added', userId: result.insertedId });
-        } else {
-          await usersCollection.updateOne({ uid }, { $set: { displayName: displayName || existingUser.displayName, lastLoginAt: new Date() } });
-          return res.json({ message: 'User updated' });
-        }
-      } catch (err) {
-        console.error('Error syncing user:', err);
-        res.status(500).json({ message: 'Server error syncing user' });
+    //   try {
+    //     const existingUser = await usersCollection.findOne({ email });
+    //     if (!existingUser) {
+    //       const result = await usersCollection.insertOne({ uid, email, displayName: displayName || '', createdAt: new Date(), lastLoginAt: new Date() });
+    //       return res.status(201).json({ message: 'User added', userId: result.insertedId });
+    //     } else {
+    //       await usersCollection.updateOne({ uid }, { $set: { displayName: displayName || existingUser.displayName, lastLoginAt: new Date() } });
+    //       return res.json({ message: 'User updated' });
+    //     }
+    //   } catch (err) {
+    //     console.error('Error syncing user:', err);
+    //     res.status(500).json({ message: 'Server error syncing user' });
+    //   }
+    // });
+
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      const query = { email: user?.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        res.send({ message: 'User already exists', insertedId: null });
+        return;
       }
-    });
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    })
 
     app.post('/api/programs', async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
