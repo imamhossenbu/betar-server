@@ -142,6 +142,12 @@ async function startServer() {
       res.send({ isAdmin: user?.role === 'admin' });
     });
 
+    // GET all users (only for admin)
+    app.get('/users', async (req, res) => {
+      const users = await usersCollection.find().toArray();
+      res.send(users);
+    });
+
 
     app.post('/api/programs', async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
