@@ -135,6 +135,14 @@ async function startServer() {
       res.send(result);
     })
 
+    app.get('/users/admin/:email', async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+
+      res.send({ isAdmin: user?.role === 'admin' });
+    });
+
+
     app.post('/api/programs', async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
