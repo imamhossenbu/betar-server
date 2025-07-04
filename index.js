@@ -149,6 +149,24 @@ async function startServer() {
     });
 
 
+    app.patch('/users/:id', async (req, res) => {
+      const { id } = req.params;
+      const { role } = req.body;
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role } }
+      );
+      res.send(result);
+    });
+
+
+    app.delete('/users/:id', async (req, res) => {
+      const { id } = req.params;
+      const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
+
     app.post('/api/programs', async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
