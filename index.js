@@ -82,7 +82,7 @@ async function startServer() {
     });
 
     // Users routes (public + protected)
-    app.post('/users', async (req, res) => {
+    app.post('/users', verifyToken, async (req, res) => {
       const user = req.body;
       const query = { email: user?.email };
       const existingUser = await usersCollection.findOne(query);
