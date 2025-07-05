@@ -70,23 +70,23 @@ async function startServer() {
     usersCollection = db.collection("users");
     songsCollection = db.collection("songs_metadata");
 
-    const verifyAdmin = (usersCollection) => {
-      return async (req, res, next) => {
-        const email = req.user?.email;
-        if (!email) return res.status(403).json({ message: 'Forbidden: No user info' });
+    // const verifyAdmin = (usersCollection) => {
+    //   return async (req, res, next) => {
+    //     const email = req.user?.email;
+    //     if (!email) return res.status(403).json({ message: 'Forbidden: No user info' });
 
-        try {
-          const user = await usersCollection.findOne({ email });
-          if (user?.role !== 'admin') {
-            return res.status(403).json({ message: 'Forbidden: Admins only' });
-          }
-          next();
-        } catch (err) {
-          console.error('Admin check error:', err);
-          res.status(500).json({ message: 'Server error during role check' });
-        }
-      };
-    };
+    //     try {
+    //       const user = await usersCollection.findOne({ email });
+    //       if (user?.role !== 'admin') {
+    //         return res.status(403).json({ message: 'Forbidden: Admins only' });
+    //       }
+    //       next();
+    //     } catch (err) {
+    //       console.error('Admin check error:', err);
+    //       res.status(500).json({ message: 'Server error during role check' });
+    //     }
+    //   };
+    // };
 
     // Import middleware AFTER collection init
     // const verifyAdmin = verifyAdmin(usersCollection);
@@ -187,7 +187,7 @@ async function startServer() {
     });
 
     // Programs routes with admin protection for add/update/delete
-    app.post('/api/programs', verifyAdmin, async (req, res) => {
+    app.post('/api/programs', async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
       let missingFields = [];
@@ -231,7 +231,7 @@ async function startServer() {
       }
     });
 
-    app.put('/api/programs/:id', verifyAdmin, async (req, res) => {
+    app.put('/api/programs/:id', async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
@@ -251,7 +251,7 @@ async function startServer() {
       }
     });
 
-    app.delete('/api/programs/:id', verifyAdmin, async (req, res) => {
+    app.delete('/api/programs/:id', async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) {
@@ -283,7 +283,7 @@ async function startServer() {
     });
 
     // Delete song (admin only)
-    app.delete('/songs/:id', verifyAdmin, async (req, res) => {
+    app.delete('/songs/:id', async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
 
