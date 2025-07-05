@@ -131,16 +131,37 @@ async function startServer() {
     // Users routes (public + protected)
     // Endpoint to create a new user or acknowledge existing user
     app.post('/users', async (req, res) => {
-      const user = req.body;
-      const query = { email: user?.email };
-      const existingUser = await usersCollection.findOne(query);
-      if (existingUser) {
-        res.send({ message: 'User already exists', insertedId: null });
-        return;
+      const { email, displayName, name, role } = req.body;
+
+      // Basic validation
+      if (!email || (!displayName && !name)) {
+        return res.status(400).json({ message: 'Email and name are required.' });
       }
-      const result = await usersCollection.insertOne(user);
-      res.send(result);
+
+      const userName = displayName || name; // fallback to whichever is provided
+
+      try {
+        const existingUser = await usersCollection.findOne({ email });
+
+        if (existingUser) {
+          return res.send({ message: 'User already exists', insertedId: null });
+        }
+
+        const newUser = {
+          email,
+          displayName: userName,
+          role: role || 'user', // default role
+          createdAt: new Date(),
+        };
+
+        const result = await usersCollection.insertOne(newUser);
+        res.send(result);
+      } catch (err) {
+        console.error('Error inserting user:', err);
+        res.status(500).json({ message: 'Server error inserting user' });
+      }
     });
+
 
     // Endpoint to check if a user is an admin (public access, but role check is client-side)
     app.get('/users/admin/:email', async (req, res) => {
