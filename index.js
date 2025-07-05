@@ -3,7 +3,7 @@ console.log('JWT_SECRET:', process.env.JWT_SECRET); // Good for debugging enviro
 
 const express = require('express');
 const cors = require('cors');
-const cookieParser = require('cookie-parser');
+// const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 
@@ -11,42 +11,34 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors({
-  origin: [
-    'https://betar-demo.vercel.app',
-    'https://betar-demo.netlify.app',
-    'http://localhost:5173'
-  ],
-  credentials: true // Essential for sending and receiving cookies cross-origin
-}));
+app.use(cors());
 app.use(express.json());
-app.use(cookieParser());
 
 // Middleware to verify JWT token from cookies
-const verifyToken = (req, res, next) => {
-  const token = req.cookies?.token;
+// const verifyToken = (req, res, next) => {
+//   const token = req.cookies?.token;
 
-  // If no token is found in cookies, deny access
-  if (!token) {
-    console.log('Unauthorized: Token missing');
-    return res.status(401).json({ message: 'Unauthorized: Token missing' });
-  }
+//   // If no token is found in cookies, deny access
+//   if (!token) {
+//     console.log('Unauthorized: Token missing');
+//     return res.status(401).json({ message: 'Unauthorized: Token missing' });
+//   }
 
-  // Verify the token using the JWT_SECRET from environment variables
-  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    // Log the secret used for verification (for debugging purposes)
-    console.log('JWT_SECRET used for verification:', process.env.JWT_SECRET);
-    // If verification fails (e.g., token expired, invalid signature)
-    if (err) {
-      console.log('Unauthorized: Invalid token', err.message);
-      return res.status(401).json({ message: 'Unauthorized: Invalid token' });
-    }
+//   // Verify the token using the JWT_SECRET from environment variables
+//   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+//     // Log the secret used for verification (for debugging purposes)
+//     console.log('JWT_SECRET used for verification:', process.env.JWT_SECRET);
+//     // If verification fails (e.g., token expired, invalid signature)
+//     if (err) {
+//       console.log('Unauthorized: Invalid token', err.message);
+//       return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+//     }
 
-    // If token is valid, attach decoded user information to the request object
-    req.user = decoded; // decoded contains { email, uid }
-    next(); // Proceed to the next middleware or route handler
-  });
-};
+//     // If token is valid, attach decoded user information to the request object
+//     req.user = decoded; // decoded contains { email, uid }
+//     next(); // Proceed to the next middleware or route handler
+//   });
+// };
 
 // MongoDB Setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -108,37 +100,30 @@ async function startServer() {
     });
 
     // JWT token creation endpoint for login/signup
-    app.post('/jwt', (req, res) => {
-      const { email, uid } = req.body;
-      if (!email || !uid) {
-        return res.status(400).json({ message: 'Email and UID required.' });
+    app.post('/jwt', async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' });
+      res.send({ token })
+    })
+
+    const verifyToken = (req, res, next) => {
+
+      if (!req.headers.authorization) {
+        res.status(401).send({ message: 'Token not found' })
+        return;
       }
+      const token = req.headers.authorization.split(' ')[1];
+      jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          res.status(403).send({ message: 'Unauthorized access' })
+          return;
+        }
+        req.user = decoded;
+        next();
+      })
 
-      // Sign the JWT token with user email and uid, set expiration
-      const token = jwt.sign({ email, uid }, process.env.JWT_SECRET, { expiresIn: '5h' });
+    }
 
-      // Configure cookie options for secure and cross-origin handling
-      const cookieOptions = {
-        httpOnly: true, // Makes the cookie inaccessible to client-side JavaScript
-        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
-        // 'none' for cross-site requests, 'strict' for same-site (default for browsers)
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 5 * 60 * 60 * 1000, // 5 hours in milliseconds
-      };
-
-      // Set the token as an HTTP-only cookie and send success response
-      res.cookie('token', token, cookieOptions).send({ success: true });
-    });
-
-    // Logout endpoint to clear the JWT cookie
-    app.post('/api/logout', (req, res) => {
-      // Clear the 'token' cookie with the same options it was set with
-      res.clearCookie('token', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
-      }).send({ success: true });
-    });
 
     // Users routes (public + protected)
     // Endpoint to create a new user or acknowledge existing user
