@@ -122,7 +122,7 @@ async function startServer() {
         httpOnly: true, // Makes the cookie inaccessible to client-side JavaScript
         secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
         // 'none' for cross-site requests, 'strict' for same-site (default for browsers)
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 5 * 60 * 60 * 1000, // 5 hours in milliseconds
       };
 
