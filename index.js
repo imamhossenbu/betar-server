@@ -17,31 +17,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// Middleware to verify JWT token from cookies
-// const verifyToken = (req, res, next) => {
-//   const token = req.cookies?.token;
 
-//   // If no token is found in cookies, deny access
-//   if (!token) {
-//     console.log('Unauthorized: Token missing');
-//     return res.status(401).json({ message: 'Unauthorized: Token missing' });
-//   }
-
-//   // Verify the token using the JWT_SECRET from environment variables
-//   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-//     // Log the secret used for verification (for debugging purposes)
-//     console.log('JWT_SECRET used for verification:', process.env.JWT_SECRET);
-//     // If verification fails (e.g., token expired, invalid signature)
-//     if (err) {
-//       console.log('Unauthorized: Invalid token', err.message);
-//       return res.status(401).json({ message: 'Unauthorized: Invalid token' });
-//     }
-
-//     // If token is valid, attach decoded user information to the request object
-//     req.user = decoded; // decoded contains { email, uid }
-//     next(); // Proceed to the next middleware or route handler
-//   });
-// };
 
 // MongoDB Setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -105,7 +81,7 @@ async function startServer() {
     // JWT token creation endpoint for login/signup
     app.post('/jwt', async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '1h' });
+      const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '5h' });
       res.send({ token })
     })
 
