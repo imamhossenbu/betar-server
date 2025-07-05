@@ -1,14 +1,11 @@
 require('dotenv').config();
+console.log('JWT_SECRET:', process.env.JWT_SECRET); // Good for debugging environment variable loading
+
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
-
-// const verifyToken = require('./middlewares/verifyToken');
-// const verifyAdmin = require('./middlewares/verifyAdmin');
-
-
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -20,28 +17,36 @@ app.use(cors({
     'https://betar-demo.netlify.app',
     'http://localhost:5173'
   ],
-  credentials: true
+  credentials: true // Essential for sending and receiving cookies cross-origin
 }));
 app.use(express.json());
 app.use(cookieParser());
 
+// Middleware to verify JWT token from cookies
 const verifyToken = (req, res, next) => {
   const token = req.cookies?.token;
 
+  // If no token is found in cookies, deny access
   if (!token) {
+    console.log('Unauthorized: Token missing');
     return res.status(401).json({ message: 'Unauthorized: Token missing' });
   }
 
+  // Verify the token using the JWT_SECRET from environment variables
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    console.log(process.env.JWT_SECRET);
-    if (err) return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+    // Log the secret used for verification (for debugging purposes)
+    console.log('JWT_SECRET used for verification:', process.env.JWT_SECRET);
+    // If verification fails (e.g., token expired, invalid signature)
+    if (err) {
+      console.log('Unauthorized: Invalid token', err.message);
+      return res.status(401).json({ message: 'Unauthorized: Invalid token' });
+    }
 
-    req.user = decoded; // contains email, uid
-    next();
+    // If token is valid, attach decoded user information to the request object
+    req.user = decoded; // decoded contains { email, uid }
+    next(); // Proceed to the next middleware or route handler
   });
 };
-
-
 
 // MongoDB Setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -55,63 +60,79 @@ const client = new MongoClient(uri, {
 
 let programsCollection, usersCollection, songsCollection;
 
+// Helper function to convert Bengali numbers to English numbers
 const convertBengaliToEnglishNumbers = (numString) => {
   const eng = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
   const ben = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
   return String(numString).split('').map(d => ben.includes(d) ? eng[ben.indexOf(d)] : d).join('');
 };
 
-// Async start function to connect DB and setup collections
+// Async function to connect to DB and setup collections
 async function startServer() {
   try {
     await client.connect();
+    // Send a ping to confirm a successful connection
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+
     const db = client.db("betar");
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
     songsCollection = db.collection("songs_metadata");
 
-    // const verifyAdmin = (usersCollection) => {
-    //   return async (req, res, next) => {
-    //     const email = req.user?.email;
-    //     if (!email) return res.status(403).json({ message: 'Forbidden: No user info' });
+    // Middleware to verify if the authenticated user is an admin
+    // This must be defined AFTER usersCollection is initialized
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.user?.email; // User info comes from verifyToken middleware
+      if (!email) {
+        console.log('Forbidden: No user info in request for admin check');
+        return res.status(403).json({ message: 'Forbidden: No user info' });
+      }
 
-    //     try {
-    //       const user = await usersCollection.findOne({ email });
-    //       if (user?.role !== 'admin') {
-    //         return res.status(403).json({ message: 'Forbidden: Admins only' });
-    //       }
-    //       next();
-    //     } catch (err) {
-    //       console.error('Admin check error:', err);
-    //       res.status(500).json({ message: 'Server error during role check' });
-    //     }
-    //   };
-    // };
-
-    // Import middleware AFTER collection init
-    // const verifyAdmin = verifyAdmin(usersCollection);
+      try {
+        const user = await usersCollection.findOne({ email });
+        if (user?.role !== 'admin') {
+          console.log(`Forbidden: User ${email} is not an admin`);
+          return res.status(403).json({ message: 'Forbidden: Admins only' });
+        }
+        next(); // User is an admin, proceed
+      } catch (err) {
+        console.error('Admin check error:', err);
+        res.status(500).json({ message: 'Server error during role check' });
+      }
+    };
 
     // Routes
     app.get('/', (req, res) => {
       res.send('Hello World!');
-      console.log(process.env.JWT_SECRET);
     });
 
+    // JWT token creation endpoint for login/signup
     app.post('/jwt', (req, res) => {
       const { email, uid } = req.body;
-      if (!email || !uid) return res.status(400).json({ message: 'Email and UID required.' });
+      if (!email || !uid) {
+        return res.status(400).json({ message: 'Email and UID required.' });
+      }
 
+      // Sign the JWT token with user email and uid, set expiration
       const token = jwt.sign({ email, uid }, process.env.JWT_SECRET, { expiresIn: '5h' });
+
+      // Configure cookie options for secure and cross-origin handling
       const cookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true, // Makes the cookie inaccessible to client-side JavaScript
+        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+        // 'none' for cross-site requests, 'strict' for same-site (default for browsers)
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
-        maxAge: 5 * 60 * 60 * 1000,
+        maxAge: 5 * 60 * 60 * 1000, // 5 hours in milliseconds
       };
+
+      // Set the token as an HTTP-only cookie and send success response
       res.cookie('token', token, cookieOptions).send({ success: true });
     });
 
+    // Logout endpoint to clear the JWT cookie
     app.post('/api/logout', (req, res) => {
+      // Clear the 'token' cookie with the same options it was set with
       res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -120,6 +141,7 @@ async function startServer() {
     });
 
     // Users routes (public + protected)
+    // Endpoint to create a new user or acknowledge existing user
     app.post('/users', async (req, res) => {
       const user = req.body;
       const query = { email: user?.email };
@@ -132,19 +154,22 @@ async function startServer() {
       res.send(result);
     });
 
+    // Endpoint to check if a user is an admin (public access, but role check is client-side)
     app.get('/users/admin/:email', async (req, res) => {
       const email = req.params.email;
       const user = await usersCollection.findOne({ email });
       res.send({ isAdmin: user?.role === 'admin' });
     });
 
-    // Protected user routes — only admin can update roles or delete users
-    app.get('/users', async (req, res) => {
+    // Protected user routes — only admin can view all users, update roles or delete users
+    // Get all users (Admin only)
+    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       const users = await usersCollection.find().toArray();
       res.send(users);
     });
 
-    app.patch('/users/:id', async (req, res) => {
+    // Update user role (Admin only)
+    app.patch('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const { role } = req.body;
       const result = await usersCollection.updateOne(
@@ -154,16 +179,14 @@ async function startServer() {
       res.send(result);
     });
 
-
-
-
-
-    app.delete('/users/:id', async (req, res) => {
+    // Delete user (Admin only)
+    app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
       res.send(result);
     });
 
+    // Get programs for a specific day and shift (Public access)
     app.get('/api/programs', async (req, res) => {
       const { day, shift } = req.query;
       if (!day || !shift) return res.status(400).json({ message: 'Day and Shift are required' });
@@ -176,6 +199,7 @@ async function startServer() {
       }
     });
 
+    // Get song by cdCut (Public access)
     app.get('/api/songs/byCdCut/:cdCut', async (req, res) => {
       try {
         const song = await programsCollection.findOne({ cdCut: req.params.cdCut });
@@ -187,7 +211,8 @@ async function startServer() {
     });
 
     // Programs routes with admin protection for add/update/delete
-    app.post('/api/programs', async (req, res) => {
+    // Add a new program (Admin only)
+    app.post('/api/programs', verifyToken, verifyAdmin, async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
       let missingFields = [];
@@ -231,7 +256,8 @@ async function startServer() {
       }
     });
 
-    app.put('/api/programs/:id', async (req, res) => {
+    // Update an existing program (Admin only)
+    app.put('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
@@ -251,7 +277,8 @@ async function startServer() {
       }
     });
 
-    app.delete('/api/programs/:id', async (req, res) => {
+    // Delete a program (Admin only)
+    app.delete('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) {
@@ -264,15 +291,15 @@ async function startServer() {
       }
     });
 
-    // Public song fetch route (no auth)
+    // Public song fetch route (no auth) - fetches songs from programsCollection
     app.get('/songs', async (req, res) => {
       try {
         const songs = await programsCollection
           .find({
             programType: 'Song',
-            cdCut: { $nin: ['...', '', null] }
+            cdCut: { $nin: ['...', '', null] } // Filter out songs without a valid cdCut
           })
-          .sort({ cdCut: 1 })
+          .sort({ cdCut: 1 }) // Sort by cdCut
           .toArray();
 
         res.status(200).json(songs);
@@ -282,8 +309,8 @@ async function startServer() {
       }
     });
 
-    // Delete song (admin only)
-    app.delete('/songs/:id', async (req, res) => {
+    // Delete song (Admin only) - deletes song from programsCollection
+    app.delete('/songs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
 
@@ -298,7 +325,10 @@ async function startServer() {
       }
     });
 
-    // Insert dummy songs if none exist
+    // Insert dummy songs into songsCollection if none exist
+    // Note: Your current logic for /songs and delete /songs/:id uses programsCollection.
+    // This dummy data insertion is for songsCollection. Ensure your application
+    // consistently uses one collection for songs or manages data across both.
     const count = await songsCollection.countDocuments();
     if (count === 0) {
       await songsCollection.insertMany([
@@ -306,14 +336,17 @@ async function startServer() {
         { cdCut: "456-B", programDetails: "ধন ধান্য পুষ্প ভরা", artist: "দ্বিজেন্দ্রলাল রায়", lyricist: "দ্বিজেন্দ্রলাল রায়", composer: "দ্বিজেন্দ্রলাল রায়", duration: "02:30", programType: "Song" },
         { cdCut: "789-C", programDetails: "মোরা একটি ফুলকে বাঁচাবো বলে", artist: "গোবিন্দ হালদার", lyricist: "গোবিন্দ হালদার", composer: "আপেল মাহমুদ", duration: "04:15", programType: "Song" }
       ]);
-      console.log("✅ Dummy song data inserted.");
+      console.log("✅ Dummy song data inserted into songs_metadata collection.");
     }
 
+    // Start the Express server
     app.listen(port, () => console.log(`🚀 Server running on port ${port}`));
+
   } catch (err) {
     console.error("❌ MongoDB connection error:", err);
-    process.exit(1);
+    process.exit(1); // Exit the process if DB connection fails
   }
 }
 
+// Call the startServer function and catch any unhandled errors
 startServer().catch((error) => console.error('Failed to run server:', error));
