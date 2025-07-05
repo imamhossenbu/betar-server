@@ -11,7 +11,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['https://betar-demo.netlify.app', 'http://localhost:5173']
+}));
+
 app.use(express.json());
 
 // Middleware to verify JWT token from cookies
@@ -113,7 +116,7 @@ async function startServer() {
         return;
       }
       const token = req.headers.authorization.split(' ')[1];
-      jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
+      jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) {
           res.status(403).send({ message: 'Unauthorized access' })
           return;
