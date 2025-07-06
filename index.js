@@ -247,8 +247,12 @@ async function startServer() {
 
 
     // post special data
+    // Assuming 'specialCollection' is defined and refers to your special programs MongoDB collection.
+    // For example, from a broader context: let specialCollection; // ... later specialCollection = db.collection("special_programs");
+
     app.post('/api/special', verifyToken, verifyAdmin, async (req, res) => {
-      const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
+      const { serial, broadcastTime, programDetails, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
+      // day, shift, and period are explicitly NOT required for /api/special
 
       let missingFields = [];
       if (!programType) missingFields.push('programType');
@@ -256,13 +260,13 @@ async function startServer() {
 
       if (programType === 'Song') {
         if (!artist) missingFields.push('artist');
+        // For 'Song' type, serial, broadcastTime, programDetails, day, shift, period are intentionally left empty/not required.
       } else {
+        // For 'General' type within special programs, we still need basic program details
         if (!serial) missingFields.push('serial');
         if (!broadcastTime) missingFields.push('broadcastTime');
         if (!programDetails) missingFields.push('programDetails');
-        if (!day) missingFields.push('day');
-        if (!shift) missingFields.push('shift');
-        if (!period) missingFields.push('period');
+        // 'day', 'shift', 'period' are intentionally omitted from missingFields for /api/special
       }
 
       if (missingFields.length > 0) return res.status(400).json({ message: `Missing required fields: ${missingFields.join(', ')}` });
@@ -273,23 +277,40 @@ async function startServer() {
           serial: finalSerial || '',
           broadcastTime: broadcastTime || '',
           programDetails: programDetails || '',
-          day: day || '',
-          shift: shift || '',
-          period: period || '',
+          // For special programs, day, shift, and period should be empty or omitted
+          day: '',    // Explicitly set to empty
+          shift: '',  // Explicitly set to empty
+          period: '', // Explicitly set to empty
           programType,
           orderIndex: parseInt(orderIndex),
           createdAt: new Date(),
         };
+
         if (programType === 'Song') {
-          Object.assign(data, { artist: artist || '', lyricist: lyricist || '', composer: composer || '', cdCut: cdCut || '', duration: duration || '' });
+          Object.assign(data, {
+            artist: artist || '',
+            lyricist: lyricist || '',
+            composer: composer || '',
+            cdCut: cdCut || '',
+            duration: duration || ''
+          });
+          // Ensure general program fields are cleared for 'Song' type even if sent
+          data.serial = '';
+          data.broadcastTime = '';
+          data.programDetails = '';
+          data.day = '';
+          data.shift = '';
+          data.period = '';
         }
-        const result = await specialCollection.insertOne(data);
+
+        const result = await specialCollection.insertOne(data); // Use specialCollection
         res.status(201).json({ ...data, _id: result.insertedId });
       } catch (err) {
-        console.error('Error adding program:', err);
-        res.status(500).json({ message: 'Server error during program creation.' });
+        console.error('Error adding special program:', err);
+        res.status(500).json({ message: 'Server error during special program creation.' });
       }
     });
+
 
     // Update an existing program (Admin only)
     app.put('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
