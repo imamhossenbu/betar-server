@@ -253,22 +253,30 @@ async function startServer() {
         cdCut,
         duration,
         orderIndex,
-        period // Only required for General
+        period, // Only required for General programs in special schedule
+        source // NEW: Destructure the 'source' field from the request body
       } = req.body;
 
       const missingFields = [];
 
+      // Basic validation for common required fields
       if (!programType) missingFields.push('programType');
       if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
 
+      // Conditional validation based on programType
       if (programType === 'Song') {
+        // For 'Song' type, 'artist' is required as per frontend validation
         if (!artist) missingFields.push('artist');
-        // period not required for songs
-      } else {
+        // Other song-specific fields (programDetails, lyricist, composer, cdCut, duration)
+        // are optional at the time of initial POST, especially if source is 'addSpecialSongPage'.
+        // They will be populated later via CD Cut lookup in the frontend.
+        // serial, broadcastTime, and period are not applicable for songs.
+      } else { // programType is 'General'
+        // For 'General' type, these fields are required
         if (!serial) missingFields.push('serial');
         if (!broadcastTime) missingFields.push('broadcastTime');
         if (!programDetails) missingFields.push('programDetails');
-        if (!period) missingFields.push('period');
+        if (!period) missingFields.push('period'); // Period is required for General special programs
       }
 
       if (missingFields.length > 0) {
@@ -278,23 +286,27 @@ async function startServer() {
       }
 
       try {
-        const finalSerial = typeof serial === 'string'
+        // Convert Bengali serial to English if it's a string (only for General programs)
+        const finalSerial = (programType !== 'Song' && typeof serial === 'string')
           ? convertBengaliToEnglishNumbers(serial)
           : serial;
 
+        // Construct the data object to be inserted
         const data = {
+          // Fields common to both General and Song, or specific to General
           serial: programType === 'Song' ? '' : finalSerial || '',
           broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
-          programDetails: programDetails || '', // ✅ Allow for both Song & General
+          programDetails: programDetails || '', // programDetails can be present for both
           period: programType === 'Song' ? '' : period || '',
-          day: '',
-          shift: '',
+          day: '', // Always empty for special programs as per frontend logic
+          shift: '', // Always empty for special programs as per frontend logic
           programType,
           orderIndex: parseInt(orderIndex),
+          source: source || 'unknown', // NEW: Store the source, default to 'unknown'
           createdAt: new Date()
         };
 
-        // Include artist-related fields only for songs
+        // Include artist-related fields only if programType is 'Song'
         if (programType === 'Song') {
           Object.assign(data, {
             artist: artist || '',
@@ -305,7 +317,10 @@ async function startServer() {
           });
         }
 
+        // Insert the new program into the collection
         const result = await specialProgramsCollection.insertOne(data);
+
+        // Respond with the newly created document, including its _id
         res.status(201).json({ ...data, _id: result.insertedId });
 
       } catch (err) {
