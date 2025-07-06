@@ -253,10 +253,9 @@ async function startServer() {
         cdCut,
         duration,
         orderIndex,
-        period // Ensure period is destructured from req.body
+        period // Must be validated conditionally
       } = req.body;
 
-      // Validation for special programs: day, shift are NOT required.
       const missingFields = [];
 
       if (!programType) missingFields.push('programType');
@@ -264,11 +263,12 @@ async function startServer() {
 
       if (programType === 'Song') {
         if (!artist) missingFields.push('artist');
+        // period not required for song
       } else {
         if (!serial) missingFields.push('serial');
         if (!broadcastTime) missingFields.push('broadcastTime');
         if (!programDetails) missingFields.push('programDetails');
-        // period is NOT required for special General programs, but will be stored if provided.
+        if (!period) missingFields.push('period'); // ✅ Required for General even in special
       }
 
       if (missingFields.length > 0) {
@@ -280,20 +280,18 @@ async function startServer() {
       try {
         const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
 
-        // Constructing data for special programs
         const data = {
           serial: programType === 'Song' ? '' : finalSerial || '',
           broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
           programDetails: programType === 'Song' ? '' : programDetails || '',
-          day: '', // Always empty for special programs
-          shift: '', // Always empty for special programs
-          period: programType === 'Song' ? '' : period || '', // Correctly use the destructured 'period' or default to empty
+          period: programType === 'Song' ? '' : period || '',
+          day: '', // Special programs don't have these
+          shift: '',
           programType,
           orderIndex: parseInt(orderIndex),
           createdAt: new Date()
         };
 
-        // Add Song fields if applicable
         if (programType === 'Song') {
           Object.assign(data, {
             artist: artist || '',
@@ -304,7 +302,7 @@ async function startServer() {
           });
         }
 
-        const result = await specialProgramsCollection.insertOne(data); // Use specialProgramsCollection
+        const result = await specialProgramsCollection.insertOne(data);
         res.status(201).json({ ...data, _id: result.insertedId });
 
       } catch (err) {
@@ -312,6 +310,7 @@ async function startServer() {
         res.status(500).json({ message: 'Server error during special program creation.' });
       }
     });
+
 
 
     // Update an existing program (Admin only)
