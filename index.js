@@ -253,7 +253,7 @@ async function startServer() {
         cdCut,
         duration,
         orderIndex,
-        period // Must be validated conditionally
+        period // Only required for General
       } = req.body;
 
       const missingFields = [];
@@ -263,12 +263,12 @@ async function startServer() {
 
       if (programType === 'Song') {
         if (!artist) missingFields.push('artist');
-        // period not required for song
+        // period not required for songs
       } else {
         if (!serial) missingFields.push('serial');
         if (!broadcastTime) missingFields.push('broadcastTime');
         if (!programDetails) missingFields.push('programDetails');
-        if (!period) missingFields.push('period'); // ✅ Required for General even in special
+        if (!period) missingFields.push('period');
       }
 
       if (missingFields.length > 0) {
@@ -278,20 +278,23 @@ async function startServer() {
       }
 
       try {
-        const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
+        const finalSerial = typeof serial === 'string'
+          ? convertBengaliToEnglishNumbers(serial)
+          : serial;
 
         const data = {
           serial: programType === 'Song' ? '' : finalSerial || '',
           broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
-          programDetails: programType === 'Song' ? '' : programDetails || '',
+          programDetails: programDetails || '', // ✅ Allow for both Song & General
           period: programType === 'Song' ? '' : period || '',
-          day: '', // Special programs don't have these
+          day: '',
           shift: '',
           programType,
           orderIndex: parseInt(orderIndex),
           createdAt: new Date()
         };
 
+        // Include artist-related fields only for songs
         if (programType === 'Song') {
           Object.assign(data, {
             artist: artist || '',
@@ -310,6 +313,7 @@ async function startServer() {
         res.status(500).json({ message: 'Server error during special program creation.' });
       }
     });
+
 
 
 
