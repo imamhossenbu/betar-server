@@ -1,9 +1,8 @@
 require('dotenv').config();
-console.log('JWT_SECRET:', process.env.JWT_SECRET); // Good for debugging environment variable loading
+console.log('JWT_SECRET:', process.env.JWT_SECRET);
 
 const express = require('express');
 const cors = require('cors');
-// const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 
@@ -17,8 +16,6 @@ app.use(cors({
 
 app.use(express.json());
 
-
-
 // MongoDB Setup
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
@@ -29,7 +26,7 @@ const client = new MongoClient(uri, {
   }
 });
 
-let programsCollection, usersCollection, songsCollection;
+let programsCollection, usersCollection, songsCollection, specialProgramsCollection; // Declared globally
 
 // Helper function to convert Bengali numbers to English numbers
 const convertBengaliToEnglishNumbers = (numString) => {
@@ -50,10 +47,9 @@ async function startServer() {
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
     songsCollection = db.collection("songs_metadata");
-    const specialCollection = db.collection("special");
+    specialProgramsCollection = db.collection("special_programs"); // Initialize the global variable
 
     // Middleware to verify if the authenticated user is an admin
-    // This must be defined AFTER usersCollection is initialized
     const verifyAdmin = async (req, res, next) => {
       const email = req.user?.email; // User info comes from verifyToken middleware
       if (!email) {
@@ -87,7 +83,6 @@ async function startServer() {
     })
 
     const verifyToken = (req, res, next) => {
-
       if (!req.headers.authorization) {
         res.status(401).send({ message: 'Token not found' })
         return;
@@ -101,7 +96,6 @@ async function startServer() {
         req.user = decoded;
         next();
       })
-
     }
 
 
@@ -168,11 +162,11 @@ async function startServer() {
     // api for get special collection data
     app.get('/api/special', async (req, res) => {
       try {
-        const programs = await specialCollection.find().sort({ orderIndex: 1 }).toArray();
+        const programs = await specialProgramsCollection.find().sort({ orderIndex: 1 }).toArray();
         res.json(programs);
       } catch (err) {
-        console.error('Error fetching programs:', err);
-        res.status(500).json({ message: 'Server error during program retrieval.' });
+        console.error('Error fetching special programs:', err);
+        res.status(500).json({ message: 'Server error during special program retrieval.' });
       }
     });
 
@@ -191,11 +185,11 @@ async function startServer() {
     // get special song by cdCut
     app.get('/api/specialSongs/byCdCut/:cdCut', async (req, res) => {
       try {
-        const song = await specialCollection.findOne({ cdCut: req.params.cdCut });
+        const song = await specialProgramsCollection.findOne({ cdCut: req.params.cdCut });
         song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
       } catch (err) {
-        console.error('Error fetching song:', err);
-        res.status(500).json({ message: 'Server error during song fetch' });
+        console.error('Error fetching special song:', err);
+        res.status(500).json({ message: 'Server error during special song fetch' });
       }
     });
 
@@ -247,9 +241,6 @@ async function startServer() {
 
 
     // post special data
-    // Assuming 'specialCollection' is defined and refers to your special programs MongoDB collection.
-    // For example, from a broader context: let specialCollection; // ... later specialCollection = db.collection("special_programs");
-
     app.post('/api/special', verifyToken, verifyAdmin, async (req, res) => {
       const {
         serial,
@@ -264,7 +255,7 @@ async function startServer() {
         orderIndex
       } = req.body;
 
-      // Validation
+      // Validation for special programs: day, shift are NOT required.
       const missingFields = [];
 
       if (!programType) missingFields.push('programType');
@@ -276,26 +267,26 @@ async function startServer() {
         if (!serial) missingFields.push('serial');
         if (!broadcastTime) missingFields.push('broadcastTime');
         if (!programDetails) missingFields.push('programDetails');
-        // day, shift, period — intentionally ignored
+        // period is NOT required for special General programs, but will be stored if provided.
       }
 
       if (missingFields.length > 0) {
         return res.status(400).json({
-          message: `Missing required fields: ${missingFields.join(', ')}`
+          message: `Missing required fields for special program: ${missingFields.join(', ')}`
         });
       }
 
       try {
         const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
 
-        // Constructing base data
+        // Constructing data for special programs
         const data = {
           serial: programType === 'Song' ? '' : finalSerial || '',
           broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
           programDetails: programType === 'Song' ? '' : programDetails || '',
-          day: '', // always empty for special
-          shift: '',
-          period: '',
+          day: '', // Always empty for special programs
+          shift: '', // Always empty for special programs
+          period: programType === 'Song' ? '' : req.body.period || '', // period is empty for Song, otherwise use provided or empty
           programType,
           orderIndex: parseInt(orderIndex),
           createdAt: new Date()
@@ -312,7 +303,7 @@ async function startServer() {
           });
         }
 
-        const result = await specialCollection.insertOne(data);
+        const result = await specialProgramsCollection.insertOne(data); // Use specialProgramsCollection
         res.status(201).json({ ...data, _id: result.insertedId });
 
       } catch (err) {
@@ -320,7 +311,6 @@ async function startServer() {
         res.status(500).json({ message: 'Server error during special program creation.' });
       }
     });
-
 
 
     // Update an existing program (Admin only)
@@ -348,20 +338,40 @@ async function startServer() {
     app.put('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
+
+        // Convert Bengali serial to English if present
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
           updateFields.serial = convertBengaliToEnglishNumbers(updateFields.serial);
         }
+        // Parse orderIndex if present
         if (updateFields.orderIndex !== undefined) {
           updateFields.orderIndex = parseInt(updateFields.orderIndex);
         }
-        const result = await specialCollection.updateOne(
+
+        // Ensure day and shift are always empty for special programs
+        updateFields.day = '';
+        updateFields.shift = '';
+
+        // Handle period based on programType for special programs
+        // If programType is Song, period should be empty. Otherwise, use provided or empty.
+        if (updateFields.programType === 'Song') {
+          updateFields.period = '';
+          // Clear general program details if it's a song
+          updateFields.serial = '';
+          updateFields.broadcastTime = '';
+          updateFields.programDetails = '';
+        } else {
+          updateFields.period = updateFields.period || '';
+        }
+
+        const result = await specialProgramsCollection.updateOne( // Use specialProgramsCollection
           { _id: new ObjectId(req.params.id) },
           { $set: updateFields }
         );
         result.matchedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json(result);
       } catch (err) {
-        console.error('Error updating program:', err);
-        res.status(500).json({ message: 'Server error during update' });
+        console.error('Error updating special program:', err);
+        res.status(500).json({ message: 'Server error during special program update' });
       }
     });
 
@@ -382,14 +392,14 @@ async function startServer() {
     // delete special data
     app.delete('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
-        const result = await specialCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+        const result = await specialProgramsCollection.deleteOne({ _id: new ObjectId(req.params.id) }); // Use specialProgramsCollection
         if (result.deletedCount === 0) {
-          return res.status(404).json({ message: 'Program not found.' });
+          return res.status(404).json({ message: 'Special program not found.' });
         }
-        res.json({ message: 'Program deleted successfully.' });
+        res.json({ message: 'Special program deleted successfully.' });
       } catch (err) {
-        console.error('Error deleting program:', err);
-        res.status(500).json({ message: 'Server error during deletion.' });
+        console.error('Error deleting special program:', err);
+        res.status(500).json({ message: 'Server error during special program deletion.' });
       }
     });
 
@@ -412,9 +422,9 @@ async function startServer() {
     });
 
     // get special song
-    app.get('/specialSongs', async (req, res) => {
+    app.get('/api/specialSongs', async (req, res) => {
       try {
-        const songs = await specialCollection
+        const songs = await specialProgramsCollection
           .find({
             programType: 'Song',
             cdCut: { $nin: ['...', '', null] } // Filter out songs without a valid cdCut
@@ -424,8 +434,8 @@ async function startServer() {
 
         res.status(200).json(songs);
       } catch (err) {
-        console.error('Error fetching songs:', err);
-        res.status(500).json({ message: 'Server error during songs fetch.' });
+        console.error('Error fetching special songs:', err);
+        res.status(500).json({ message: 'Server error during special songs fetch.' });
       }
     });
 
@@ -448,23 +458,20 @@ async function startServer() {
     // delete special song
     app.delete('/specialSongs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
-        const result = await specialCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+        const result = await specialProgramsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
 
         if (result.deletedCount === 0) {
-          return res.status(404).json({ message: 'Song not found.' });
+          return res.status(404).json({ message: 'Special song not found.' });
         }
 
-        res.json({ message: 'Song deleted successfully.' });
+        res.json({ message: 'Special song deleted successfully.' });
       } catch (err) {
-        console.error('Error deleting song:', err);
+        console.error('Error deleting special song:', err);
         res.status(500).json({ message: 'Server error during deletion.' });
       }
     });
 
     // Insert dummy songs into songsCollection if none exist
-    // Note: Your current logic for /songs and delete /songs/:id uses programsCollection.
-    // This dummy data insertion is for songsCollection. Ensure your application
-    // consistently uses one collection for songs or manages data across both.
     const count = await songsCollection.countDocuments();
     if (count === 0) {
       await songsCollection.insertMany([
