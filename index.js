@@ -161,14 +161,26 @@ async function startServer() {
 
     // api for get special collection data
     app.get('/api/special', async (req, res) => {
+      const { source } = req.query;
+
+      const query = {};
+      if (source) {
+        query.source = source;
+      }
+
       try {
-        const programs = await specialProgramsCollection.find().sort({ orderIndex: 1 }).toArray();
+        const programs = await specialProgramsCollection
+          .find(query)
+          .sort({ orderIndex: 1 })
+          .toArray();
+
         res.json(programs);
       } catch (err) {
         console.error('Error fetching special programs:', err);
         res.status(500).json({ message: 'Server error during special program retrieval.' });
       }
     });
+
 
     // Get song by cdCut (Public access)
     app.get('/api/songs/byCdCut/:cdCut', async (req, res) => {
