@@ -50,6 +50,7 @@ async function startServer() {
     programsCollection = db.collection("cue_programs");
     usersCollection = db.collection("users");
     songsCollection = db.collection("songs_metadata");
+    const specialCollection = db.collection("special");
 
     // Middleware to verify if the authenticated user is an admin
     // This must be defined AFTER usersCollection is initialized
@@ -164,10 +165,33 @@ async function startServer() {
       }
     });
 
+    // api for get special collection data
+    app.get('/api/special', async (req, res) => {
+      try {
+        const programs = await specialCollection.find().sort({ orderIndex: 1 }).toArray();
+        res.json(programs);
+      } catch (err) {
+        console.error('Error fetching programs:', err);
+        res.status(500).json({ message: 'Server error during program retrieval.' });
+      }
+    });
+
     // Get song by cdCut (Public access)
     app.get('/api/songs/byCdCut/:cdCut', async (req, res) => {
       try {
         const song = await programsCollection.findOne({ cdCut: req.params.cdCut });
+        song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
+      } catch (err) {
+        console.error('Error fetching song:', err);
+        res.status(500).json({ message: 'Server error during song fetch' });
+      }
+    });
+
+
+    // get special song by cdCut
+    app.get('/api/specialSongs/byCdCut/:cdCut', async (req, res) => {
+      try {
+        const song = await specialCollection.findOne({ cdCut: req.params.cdCut });
         song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
       } catch (err) {
         console.error('Error fetching song:', err);
@@ -221,6 +245,52 @@ async function startServer() {
       }
     });
 
+
+    // post special data
+    app.post('/api/special', verifyToken, verifyAdmin, async (req, res) => {
+      const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
+
+      let missingFields = [];
+      if (!programType) missingFields.push('programType');
+      if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
+
+      if (programType === 'Song') {
+        if (!artist) missingFields.push('artist');
+      } else {
+        if (!serial) missingFields.push('serial');
+        if (!broadcastTime) missingFields.push('broadcastTime');
+        if (!programDetails) missingFields.push('programDetails');
+        if (!day) missingFields.push('day');
+        if (!shift) missingFields.push('shift');
+        if (!period) missingFields.push('period');
+      }
+
+      if (missingFields.length > 0) return res.status(400).json({ message: `Missing required fields: ${missingFields.join(', ')}` });
+
+      try {
+        const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
+        const data = {
+          serial: finalSerial || '',
+          broadcastTime: broadcastTime || '',
+          programDetails: programDetails || '',
+          day: day || '',
+          shift: shift || '',
+          period: period || '',
+          programType,
+          orderIndex: parseInt(orderIndex),
+          createdAt: new Date(),
+        };
+        if (programType === 'Song') {
+          Object.assign(data, { artist: artist || '', lyricist: lyricist || '', composer: composer || '', cdCut: cdCut || '', duration: duration || '' });
+        }
+        const result = await specialCollection.insertOne(data);
+        res.status(201).json({ ...data, _id: result.insertedId });
+      } catch (err) {
+        console.error('Error adding program:', err);
+        res.status(500).json({ message: 'Server error during program creation.' });
+      }
+    });
+
     // Update an existing program (Admin only)
     app.put('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
@@ -242,10 +312,45 @@ async function startServer() {
       }
     });
 
+    // update special data
+    app.put('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const { _id, ...updateFields } = req.body;
+        if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
+          updateFields.serial = convertBengaliToEnglishNumbers(updateFields.serial);
+        }
+        if (updateFields.orderIndex !== undefined) {
+          updateFields.orderIndex = parseInt(updateFields.orderIndex);
+        }
+        const result = await specialCollection.updateOne(
+          { _id: new ObjectId(req.params.id) },
+          { $set: updateFields }
+        );
+        result.matchedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json(result);
+      } catch (err) {
+        console.error('Error updating program:', err);
+        res.status(500).json({ message: 'Server error during update' });
+      }
+    });
+
     // Delete a program (Admin only)
     app.delete('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: 'Program not found.' });
+        }
+        res.json({ message: 'Program deleted successfully.' });
+      } catch (err) {
+        console.error('Error deleting program:', err);
+        res.status(500).json({ message: 'Server error during deletion.' });
+      }
+    });
+
+    // delete special data
+    app.delete('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const result = await specialCollection.deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) {
           return res.status(404).json({ message: 'Program not found.' });
         }
@@ -274,10 +379,44 @@ async function startServer() {
       }
     });
 
+    // get special song
+    app.get('/specialSongs', async (req, res) => {
+      try {
+        const songs = await specialCollection
+          .find({
+            programType: 'Song',
+            cdCut: { $nin: ['...', '', null] } // Filter out songs without a valid cdCut
+          })
+          .sort({ cdCut: 1 }) // Sort by cdCut
+          .toArray();
+
+        res.status(200).json(songs);
+      } catch (err) {
+        console.error('Error fetching songs:', err);
+        res.status(500).json({ message: 'Server error during songs fetch.' });
+      }
+    });
+
     // Delete song (Admin only) - deletes song from programsCollection
     app.delete('/songs/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: 'Song not found.' });
+        }
+
+        res.json({ message: 'Song deleted successfully.' });
+      } catch (err) {
+        console.error('Error deleting song:', err);
+        res.status(500).json({ message: 'Server error during deletion.' });
+      }
+    });
+
+    // delete special song
+    app.delete('/specialSongs/:id', verifyToken, verifyAdmin, async (req, res) => {
+      try {
+        const result = await specialCollection.deleteOne({ _id: new ObjectId(req.params.id) });
 
         if (result.deletedCount === 0) {
           return res.status(404).json({ message: 'Song not found.' });
