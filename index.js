@@ -189,7 +189,7 @@ async function startServer() {
         song ? res.json(song) : res.status(404).json({ message: 'Song not found' });
       } catch (err) {
         console.error('Error fetching special song:', err);
-        res.status(500).json({ message: 'Server error during special song fetch' });
+        res.status(500).json({ message: 'Server error during special song fetch.' });
       }
     });
 
@@ -252,7 +252,8 @@ async function startServer() {
         composer,
         cdCut,
         duration,
-        orderIndex
+        orderIndex,
+        period // Ensure period is destructured from req.body
       } = req.body;
 
       // Validation for special programs: day, shift are NOT required.
@@ -286,7 +287,7 @@ async function startServer() {
           programDetails: programType === 'Song' ? '' : programDetails || '',
           day: '', // Always empty for special programs
           shift: '', // Always empty for special programs
-          period: programType === 'Song' ? '' : req.body.period || '', // period is empty for Song, otherwise use provided or empty
+          period: programType === 'Song' ? '' : period || '', // Correctly use the destructured 'period' or default to empty
           programType,
           orderIndex: parseInt(orderIndex),
           createdAt: new Date()
@@ -361,7 +362,7 @@ async function startServer() {
           updateFields.broadcastTime = '';
           updateFields.programDetails = '';
         } else {
-          updateFields.period = updateFields.period || '';
+          updateFields.period = updateFields.period || ''; // Use the provided value or empty string
         }
 
         const result = await specialProgramsCollection.updateOne( // Use specialProgramsCollection
@@ -477,7 +478,7 @@ async function startServer() {
       await songsCollection.insertMany([
         { cdCut: "123-A", programDetails: "আমার সোনার বাংলা", artist: "রবীন্দ্রনাথ ঠাকুর", lyricist: "রবীন্দ্রনাথ ঠাকুর", composer: "রবীন্দ্রনাথ ঠাকুর", duration: "03:00", programType: "Song" },
         { cdCut: "456-B", programDetails: "ধন ধান্য পুষ্প ভরা", artist: "দ্বিজেন্দ্রলাল রায়", lyricist: "দ্বিজেন্দ্রলাল রায়", composer: "দ্বিজেন্দ্রলাল রায়", duration: "02:30", programType: "Song" },
-        { cdCut: "789-C", programDetails: "মোরা একটি ফুলকে বাঁচাবো বলে", artist: "গোবিন্দ হালদার", lyricist: "গোবিন্দ হালদার", composer: "আপেল মাহমুদ", duration: "04:15", programType: "Song" }
+        { cdCut: "789-C", programDetails: "মোরা একটি ফুলকে বাঁচাবো বলে", artist: "গোবিন্দ হালদার", lyricist: "গোবিন্দ হালdar", composer: "আপেল মাহমুদ", duration: "04:15", programType: "Song" }
       ]);
       console.log("✅ Dummy song data inserted into songs_metadata collection.");
     }
