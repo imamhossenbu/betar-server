@@ -369,22 +369,60 @@ async function startServer() {
     app.put('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
+
+        // ✅ Ensure programDetails is provided
+        if (!updateFields.programDetails || typeof updateFields.programDetails !== 'string') {
+          return res.status(400).json({ message: 'programDetails is required' });
+        }
+
+        // ✅ Convert Bengali serial to English if applicable
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
           updateFields.serial = convertBengaliToEnglishNumbers(updateFields.serial);
         }
+
+        // ✅ Parse orderIndex to integer if it exists
         if (updateFields.orderIndex !== undefined) {
           updateFields.orderIndex = parseInt(updateFields.orderIndex);
         }
+
+        // ✅ Handle type-specific logic
+        if (updateFields.programType === 'Song') {
+          // Clear general-only fields for Song
+          updateFields.serial = '';
+          updateFields.broadcastTime = '';
+          updateFields.period = '';
+          updateFields.day = '';
+          updateFields.shift = '';
+        } else {
+          // Clear song-only fields for General
+          updateFields.artist = updateFields.artist || '';
+          updateFields.lyricist = updateFields.lyricist || '';
+          updateFields.composer = updateFields.composer || '';
+          updateFields.cdCut = updateFields.cdCut || '';
+          updateFields.duration = updateFields.duration || '';
+
+          // Special programs should still have empty day/shift
+          updateFields.day = '';
+          updateFields.shift = '';
+        }
+
+        // ✅ Final update operation
         const result = await specialProgramsCollection.updateOne(
           { _id: new ObjectId(req.params.id) },
           { $set: updateFields }
         );
-        result.matchedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json(result);
+
+        if (result.matchedCount === 0) {
+          return res.status(404).json({ message: 'Not found or no permission' });
+        }
+
+        res.json({ message: 'Program updated successfully', result });
       } catch (err) {
-        console.error('Error updating program:', err);
+        console.error('Error updating special program:', err);
         res.status(500).json({ message: 'Server error during update' });
       }
     });
+
 
 
     // Delete a program (Admin only)
