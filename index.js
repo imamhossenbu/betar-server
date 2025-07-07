@@ -370,42 +370,41 @@ async function startServer() {
       try {
         const { _id, ...updateFields } = req.body;
 
-        // Convert Bengali serial to English if present
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
           updateFields.serial = convertBengaliToEnglishNumbers(updateFields.serial);
         }
-        // Parse orderIndex if present
+
         if (updateFields.orderIndex !== undefined) {
           updateFields.orderIndex = parseInt(updateFields.orderIndex);
         }
 
-        // Ensure day and shift are always empty for special programs
         updateFields.day = '';
         updateFields.shift = '';
 
-        // Handle period based on programType for special programs
-        // If programType is Song, period should be empty. Otherwise, use provided or empty.
         if (updateFields.programType === 'Song') {
           updateFields.period = '';
-          // Clear general program details if it's a song
           updateFields.serial = '';
           updateFields.broadcastTime = '';
-          updateFields.programDetails = updateFields.programDetails || '';
-          ;
+          // ❌ REMOVE this line:
+          // updateFields.programDetails = updateFields.programDetails || '';
         } else {
-          updateFields.period = updateFields.period || ''; // Use the provided value or empty string
+          updateFields.period = updateFields.period || '';
         }
 
-        const result = await specialProgramsCollection.updateOne( // Use specialProgramsCollection
+        const result = await specialProgramsCollection.updateOne(
           { _id: new ObjectId(req.params.id) },
           { $set: updateFields }
         );
-        result.matchedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json(result);
+
+        result.matchedCount === 0
+          ? res.status(404).json({ message: 'Not found or no permission' })
+          : res.json(result);
       } catch (err) {
         console.error('Error updating special program:', err);
         res.status(500).json({ message: 'Server error during special program update' });
       }
     });
+
 
     // Delete a program (Admin only)
     app.delete('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
