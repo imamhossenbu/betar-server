@@ -369,39 +369,20 @@ async function startServer() {
     app.put('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
         const { _id, ...updateFields } = req.body;
-
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
           updateFields.serial = convertBengaliToEnglishNumbers(updateFields.serial);
         }
-
         if (updateFields.orderIndex !== undefined) {
           updateFields.orderIndex = parseInt(updateFields.orderIndex);
         }
-
-        updateFields.day = '';
-        updateFields.shift = '';
-
-        if (updateFields.programType === 'Song') {
-          updateFields.period = '';
-          updateFields.serial = '';
-          updateFields.broadcastTime = '';
-          // ❌ REMOVE this line:
-          // updateFields.programDetails = updateFields.programDetails || '';
-        } else {
-          updateFields.period = updateFields.period || '';
-        }
-
         const result = await specialProgramsCollection.updateOne(
           { _id: new ObjectId(req.params.id) },
           { $set: updateFields }
         );
-
-        result.matchedCount === 0
-          ? res.status(404).json({ message: 'Not found or no permission' })
-          : res.json(result);
+        result.matchedCount === 0 ? res.status(404).json({ message: 'Not found or no permission' }) : res.json(result);
       } catch (err) {
-        console.error('Error updating special program:', err);
-        res.status(500).json({ message: 'Server error during special program update' });
+        console.error('Error updating program:', err);
+        res.status(500).json({ message: 'Server error during update' });
       }
     });
 
