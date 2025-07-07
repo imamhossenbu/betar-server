@@ -368,45 +368,46 @@ async function startServer() {
     // update special data
     app.put('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
       try {
-        const { _id, ...updateFields } = req.body;
+        const { _id, type, ...updateFields } = req.body;
 
-        // ✅ Ensure programDetails is provided
-        if (!updateFields.programDetails || typeof updateFields.programDetails !== 'string') {
-          return res.status(400).json({ message: 'programDetails is required' });
-        }
-
-        // ✅ Convert Bengali serial to English if applicable
+        // ✅ Convert Bengali serial to English if needed
         if (updateFields.serial && /^[০-৯]+$/.test(updateFields.serial)) {
           updateFields.serial = convertBengaliToEnglishNumbers(updateFields.serial);
         }
 
-        // ✅ Parse orderIndex to integer if it exists
         if (updateFields.orderIndex !== undefined) {
           updateFields.orderIndex = parseInt(updateFields.orderIndex);
         }
 
-        // ✅ Handle type-specific logic
-        if (updateFields.programType === 'Song') {
-          // Clear general-only fields for Song
-          updateFields.serial = '';
-          updateFields.broadcastTime = '';
-          updateFields.period = '';
-          updateFields.day = '';
-          updateFields.shift = '';
-        } else {
-          // Clear song-only fields for General
-          updateFields.artist = updateFields.artist || '';
-          updateFields.lyricist = updateFields.lyricist || '';
-          updateFields.composer = updateFields.composer || '';
-          updateFields.cdCut = updateFields.cdCut || '';
-          updateFields.duration = updateFields.duration || '';
+        // ✅ Check if this is just a reordering request (serial/orderIndex only)
+        const isReorderOnly = Object.keys(updateFields).every(key =>
+          ['serial', 'orderIndex'].includes(key)
+        );
 
-          // Special programs should still have empty day/shift
-          updateFields.day = '';
-          updateFields.shift = '';
+        // ✅ Only validate full update fields if it's NOT reorder-only
+        if (!isReorderOnly) {
+          if (!updateFields.programDetails || typeof updateFields.programDetails !== 'string') {
+            return res.status(400).json({ message: 'programDetails is required' });
+          }
+
+          if (updateFields.programType === 'Song') {
+            updateFields.serial = '';
+            updateFields.broadcastTime = '';
+            updateFields.period = '';
+            updateFields.day = '';
+            updateFields.shift = '';
+          } else {
+            updateFields.artist = updateFields.artist || '';
+            updateFields.lyricist = updateFields.lyricist || '';
+            updateFields.composer = updateFields.composer || '';
+            updateFields.cdCut = updateFields.cdCut || '';
+            updateFields.duration = updateFields.duration || '';
+            updateFields.day = '';
+            updateFields.shift = '';
+          }
         }
 
-        // ✅ Final update operation
+        // ✅ Perform the update
         const result = await specialProgramsCollection.updateOne(
           { _id: new ObjectId(req.params.id) },
           { $set: updateFields }
@@ -416,12 +417,14 @@ async function startServer() {
           return res.status(404).json({ message: 'Not found or no permission' });
         }
 
-        res.json({ message: 'Program updated successfully', result });
+        res.json({ message: 'Updated successfully', result });
       } catch (err) {
         console.error('Error updating special program:', err);
         res.status(500).json({ message: 'Server error during update' });
       }
     });
+
+
 
 
 
