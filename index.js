@@ -390,7 +390,8 @@ async function startServer() {
           // Clear general program details if it's a song
           updateFields.serial = '';
           updateFields.broadcastTime = '';
-          updateFields.programDetails = '';
+          updateFields.programDetails = updateFields.programDetails || '';
+          ;
         } else {
           updateFields.period = updateFields.period || ''; // Use the provided value or empty string
         }
