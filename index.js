@@ -17,7 +17,7 @@ app.use(cors({
 app.use(express.json());
 
 // MongoDB Setup
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ezhxw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.mc0punk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -207,7 +207,7 @@ async function startServer() {
 
     // Programs routes with admin protection for add/update/delete
     // Add a new program (Admin only)
-    app.post('/api/programs', verifyToken, verifyAdmin, async (req, res) => {
+    app.post('/api/programs', verifyToken, async (req, res) => {
       const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
       let missingFields = [];
@@ -253,7 +253,7 @@ async function startServer() {
 
 
     // post special data
-    app.post('/api/special', verifyToken, verifyAdmin, async (req, res) => {
+    app.post('/api/special', verifyToken, async (req, res) => {
       const {
         serial,
         broadcastTime,
@@ -429,7 +429,7 @@ async function startServer() {
 
 
     // Delete a program (Admin only)
-    app.delete('/api/programs/:id', verifyToken, verifyAdmin, async (req, res) => {
+    app.delete('/api/programs/:id', verifyToken, async (req, res) => {
       try {
         const result = await programsCollection.deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) {
@@ -443,7 +443,7 @@ async function startServer() {
     });
 
     // delete special data
-    app.delete('/api/special/:id', verifyToken, verifyAdmin, async (req, res) => {
+    app.delete('/api/special/:id', verifyToken, async (req, res) => {
       try {
         const result = await specialProgramsCollection.deleteOne({ _id: new ObjectId(req.params.id) }); // Use specialProgramsCollection
         if (result.deletedCount === 0) {
