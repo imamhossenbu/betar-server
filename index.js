@@ -228,19 +228,10 @@ async function startServer() {
         orderIndex
       } = req.body;
 
-      let missingFields = [];
-
-      if (!programType) missingFields.push('programType');
-      if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
-
-      if (missingFields.length > 0) {
-        return res.status(400).json({
-          message: `Missing required fields: ${missingFields.join(', ')}`
-        });
-      }
-
       try {
-        const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
+        const finalSerial = typeof serial === 'string'
+          ? convertBengaliToEnglishNumbers(serial)
+          : serial;
 
         const data = {
           serial: finalSerial || '',
@@ -249,8 +240,8 @@ async function startServer() {
           day: day || '',
           shift: shift || '',
           period: period || '',
-          programType,
-          orderIndex: parseInt(orderIndex),
+          programType: programType || '',
+          orderIndex: parseInt(orderIndex) || 0,
           createdAt: new Date(),
         };
 
@@ -266,14 +257,84 @@ async function startServer() {
 
         const result = await programsCollection.insertOne(data);
         res.status(201).json({ ...data, _id: result.insertedId });
+
       } catch (err) {
         console.error('Error adding program:', err);
         res.status(500).json({ message: 'Server error during program creation.' });
       }
     });
 
+
     // post special data
 
+
+    // app.post('/api/special', verifyToken, async (req, res) => {
+    //   const {
+    //     serial,
+    //     broadcastTime,
+    //     programDetails,
+    //     programType,
+    //     artist,
+    //     lyricist,
+    //     composer,
+    //     cdCut,
+    //     duration,
+    //     orderIndex,
+    //     period,
+    //     source // ✅ source is optional, default to 'unknown'
+    //   } = req.body;
+
+    //   const missingFields = [];
+
+    //   // ✅ Basic validation
+    //   if (!programType) missingFields.push('programType');
+    //   if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
+
+
+
+    //   if (missingFields.length > 0) {
+    //     return res.status(400).json({
+    //       message: `Missing required fields for special program: ${missingFields.join(', ')}`
+    //     });
+    //   }
+
+    //   try {
+    //     // ✅ Convert Bengali to English serial for General only
+    //     const finalSerial = (programType !== 'Song' && typeof serial === 'string')
+    //       ? convertBengaliToEnglishNumbers(serial)
+    //       : serial;
+
+    //     const data = {
+    //       serial: programType === 'Song' ? '' : finalSerial || '',
+    //       broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
+    //       programDetails: programDetails || '', // ✅ Optional
+    //       period: programType === 'Song' ? '' : period || '',
+    //       day: '',       // ✅ Always empty for special
+    //       shift: '',     // ✅ Always empty for special
+    //       programType,
+    //       orderIndex: parseInt(orderIndex),
+    //       source: source || 'unknown', // ✅ default fallback
+    //       createdAt: new Date(),
+    //     };
+
+    //     if (programType === 'Song') {
+    //       Object.assign(data, {
+    //         artist: artist || '',
+    //         lyricist: lyricist || '',
+    //         composer: composer || '',
+    //         cdCut: cdCut || '',
+    //         duration: duration || ''
+    //       });
+    //     }
+
+    //     const result = await specialProgramsCollection.insertOne(data);
+
+    //     res.status(201).json({ ...data, _id: result.insertedId });
+    //   } catch (err) {
+    //     console.error('Error adding special program:', err);
+    //     res.status(500).json({ message: 'Server error during special program creation.' });
+    //   }
+    // });
 
     app.post('/api/special', verifyToken, async (req, res) => {
       const {
@@ -288,43 +349,38 @@ async function startServer() {
         duration,
         orderIndex,
         period,
-        source // ✅ source is optional, default to 'unknown'
+        source
       } = req.body;
 
-      const missingFields = [];
-
-      // ✅ Basic validation
-      if (!programType) missingFields.push('programType');
-      if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
-
-
-
-      if (missingFields.length > 0) {
+      // ✅ Absolute minimum required fields
+      if (!programType || orderIndex === undefined || orderIndex === null) {
         return res.status(400).json({
-          message: `Missing required fields for special program: ${missingFields.join(', ')}`
+          message: 'Missing required fields: programType and orderIndex are required.'
         });
       }
 
       try {
-        // ✅ Convert Bengali to English serial for General only
-        const finalSerial = (programType !== 'Song' && typeof serial === 'string')
-          ? convertBengaliToEnglishNumbers(serial)
-          : serial;
+        const isSong = programType === 'Song';
+
+        const finalSerial =
+          !isSong && typeof serial === 'string'
+            ? convertBengaliToEnglishNumbers(serial)
+            : '';
 
         const data = {
-          serial: programType === 'Song' ? '' : finalSerial || '',
-          broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
-          programDetails: programDetails || '', // ✅ Optional
-          period: programType === 'Song' ? '' : period || '',
-          day: '',       // ✅ Always empty for special
-          shift: '',     // ✅ Always empty for special
           programType,
           orderIndex: parseInt(orderIndex),
-          source: source || 'unknown', // ✅ default fallback
+          source: source || 'unknown',
+          programDetails: programDetails || '',
           createdAt: new Date(),
+          serial: isSong ? '' : finalSerial || '',
+          broadcastTime: isSong ? '' : broadcastTime || '',
+          period: isSong ? '' : period || '',
+          day: '',       // Always empty for special
+          shift: ''      // Always empty for special
         };
 
-        if (programType === 'Song') {
+        if (isSong) {
           Object.assign(data, {
             artist: artist || '',
             lyricist: lyricist || '',
@@ -342,6 +398,7 @@ async function startServer() {
         res.status(500).json({ message: 'Server error during special program creation.' });
       }
     });
+
 
 
 
