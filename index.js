@@ -216,9 +216,8 @@ async function startServer() {
       if (!programType) missingFields.push('programType');
       if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
 
-      if (programType === 'Song') {
-        if (!artist) missingFields.push('artist');
-      } else {
+      if (programType === 'General') {
+        // if (!artist) missingFields.push('artist');
         if (!serial) missingFields.push('serial');
         if (!broadcastTime) missingFields.push('broadcastTime');
         if (!programDetails) missingFields.push('programDetails');
