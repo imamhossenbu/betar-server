@@ -209,48 +209,7 @@ async function startServer() {
 
     // Programs routes with admin protection for add/update/delete
     // Add a new program (Admin only)
-    // app.post('/api/programs', verifyToken, async (req, res) => {
-    //   const { serial, broadcastTime, programDetails, day, shift, period, programType, artist, lyricist, composer, cdCut, duration, orderIndex } = req.body;
 
-    //   let missingFields = [];
-    //   if (!programType) missingFields.push('programType');
-    //   if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
-
-    //   if (programType === 'General') {
-    //     // if (!artist) missingFields.push('artist');
-    //     if (!serial) missingFields.push('serial');
-    //     if (!broadcastTime) missingFields.push('broadcastTime');
-    //     if (!programDetails) missingFields.push('programDetails');
-    //     if (!day) missingFields.push('day');
-    //     if (!shift) missingFields.push('shift');
-    //     if (!period) missingFields.push('period');
-    //   }
-
-    //   if (missingFields.length > 0) return res.status(400).json({ message: `Missing required fields: ${missingFields.join(', ')}` });
-
-    //   try {
-    //     const finalSerial = typeof serial === 'string' ? convertBengaliToEnglishNumbers(serial) : serial;
-    //     const data = {
-    //       serial: finalSerial || '',
-    //       broadcastTime: broadcastTime || '',
-    //       programDetails: programDetails || '',
-    //       day: day || '',
-    //       shift: shift || '',
-    //       period: period || '',
-    //       programType,
-    //       orderIndex: parseInt(orderIndex),
-    //       createdAt: new Date(),
-    //     };
-    //     if (programType === 'Song') {
-    //       Object.assign(data, { artist: artist || '', lyricist: lyricist || '', composer: composer || '', cdCut: cdCut || '', duration: duration || '' });
-    //     }
-    //     const result = await programsCollection.insertOne(data);
-    //     res.status(201).json({ ...data, _id: result.insertedId });
-    //   } catch (err) {
-    //     console.error('Error adding program:', err);
-    //     res.status(500).json({ message: 'Server error during program creation.' });
-    //   }
-    // });
 
     app.post('/api/programs', verifyToken, async (req, res) => {
       const {
@@ -273,17 +232,6 @@ async function startServer() {
 
       if (!programType) missingFields.push('programType');
       if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
-
-      if (programType === 'General') {
-        if (!serial) missingFields.push('serial');
-        if (!broadcastTime) missingFields.push('broadcastTime');
-        // ❌ Removed programDetails from required
-        if (!day) missingFields.push('day');
-        if (!shift) missingFields.push('shift');
-        if (!period) missingFields.push('period');
-      }
-
-      // ✅ Removed artist check for Song
 
       if (missingFields.length > 0) {
         return res.status(400).json({
@@ -325,86 +273,7 @@ async function startServer() {
     });
 
     // post special data
-    // app.post('/api/special', verifyToken, async (req, res) => {
-    //   const {
-    //     serial,
-    //     broadcastTime,
-    //     programDetails,
-    //     programType,
-    //     artist,
-    //     lyricist,
-    //     composer,
-    //     cdCut,
-    //     duration,
-    //     orderIndex,
-    //     period, // Only required for General programs in special schedule
-    //     source // NEW: Destructure the 'source' field from the request body
-    //   } = req.body;
 
-    //   const missingFields = [];
-
-    //   // Basic validation for common required fields
-    //   if (!programType) missingFields.push('programType');
-    //   if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
-
-    //   // Conditional validation based on programType
-    //   if (programType === 'General') {
-    //     if (!serial) missingFields.push('serial');
-    //     if (!broadcastTime) missingFields.push('broadcastTime');
-    //     if (!programDetails) missingFields.push('programDetails');
-    //     if (!period) missingFields.push('period');
-
-    //   }
-
-    //   if (missingFields.length > 0) {
-    //     return res.status(400).json({
-    //       message: `Missing required fields for special program: ${missingFields.join(', ')}`
-    //     });
-    //   }
-
-    //   try {
-    //     // Convert Bengali serial to English if it's a string (only for General programs)
-    //     const finalSerial = (programType !== 'Song' && typeof serial === 'string')
-    //       ? convertBengaliToEnglishNumbers(serial)
-    //       : serial;
-
-    //     // Construct the data object to be inserted
-    //     const data = {
-    //       // Fields common to both General and Song, or specific to General
-    //       serial: programType === 'Song' ? '' : finalSerial || '',
-    //       broadcastTime: programType === 'Song' ? '' : broadcastTime || '',
-    //       programDetails: programDetails || '', // programDetails can be present for both
-    //       period: programType === 'Song' ? '' : period || '',
-    //       day: '', // Always empty for special programs as per frontend logic
-    //       shift: '', // Always empty for special programs as per frontend logic
-    //       programType,
-    //       orderIndex: parseInt(orderIndex),
-    //       source: source || 'unknown', // NEW: Store the source, default to 'unknown'
-    //       createdAt: new Date()
-    //     };
-
-    //     // Include artist-related fields only if programType is 'Song'
-    //     if (programType === 'Song') {
-    //       Object.assign(data, {
-    //         artist: artist || '',
-    //         lyricist: lyricist || '',
-    //         composer: composer || '',
-    //         cdCut: cdCut || '',
-    //         duration: duration || ''
-    //       });
-    //     }
-
-    //     // Insert the new program into the collection
-    //     const result = await specialProgramsCollection.insertOne(data);
-
-    //     // Respond with the newly created document, including its _id
-    //     res.status(201).json({ ...data, _id: result.insertedId });
-
-    //   } catch (err) {
-    //     console.error('Error adding special program:', err);
-    //     res.status(500).json({ message: 'Server error during special program creation.' });
-    //   }
-    // });
 
     app.post('/api/special', verifyToken, async (req, res) => {
       const {
@@ -428,13 +297,7 @@ async function startServer() {
       if (!programType) missingFields.push('programType');
       if (orderIndex === undefined || orderIndex === null) missingFields.push('orderIndex');
 
-      // ✅ General programType specific validation
-      if (programType === 'General') {
-        if (!serial) missingFields.push('serial');
-        if (!broadcastTime) missingFields.push('broadcastTime');
-        if (!period) missingFields.push('period');
-        // ❌ Do not check for programDetails (optional)
-      }
+
 
       if (missingFields.length > 0) {
         return res.status(400).json({
