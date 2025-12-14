@@ -1,5 +1,4 @@
-require('dotenv').config();
-console.log('JWT_SECRET:', process.env.JWT_SECRET);
+
 
 const express = require('express');
 const cors = require('cors');
@@ -8,18 +7,25 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const JWT_SECRET = 'R8g@vQk!7hXp2Fz$5sW&jL3tYpC9BnD^eZ0uI_oA6mM*rE1xQcV4yK_bTfH7dN8a'
 
-// Middleware
-app.use(cors({
-  origin: ['https://betar-demo.netlify.app', 'http://localhost:5173', 'https://equesheet.com']
-}));
+const allowedOrigin = 'https://equesheet.com';
+
+const corsConfig = {
+  origin: allowedOrigin,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type'],
+};
+
+app.use(cors(corsConfig));
+
+
 
 app.use(express.json());
 
-console.log(process.env.DB_USER);
 
 // MongoDB Setup
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ukmepty.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const uri = `mongodb+srv://betar_server:791tJHNH2vOvGTNY@cluster0.ukmepty.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -74,13 +80,13 @@ async function startServer() {
 
     // Routes
     app.get('/', (req, res) => {
-      res.send('Hello World!');
+      res.json({ message: "Server OK" });
     });
 
     // JWT token creation endpoint for login/signup
     app.post('/jwt', async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '5h' });
+      const token = jwt.sign(user, JWT_SECRET, { expiresIn: '5h' });
       res.send({ token })
     })
 
@@ -90,7 +96,7 @@ async function startServer() {
         return;
       }
       const token = req.headers.authorization.split(' ')[1];
-      jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      jwt.verify(token, JWT_SECRET, (err, decoded) => {
         if (err) {
           res.status(403).send({ message: 'Unauthorized access' })
           return;
@@ -127,6 +133,7 @@ async function startServer() {
     // Get all users (Admin only)
     app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       const users = await usersCollection.find().toArray();
+      console.log(users);
       res.send(users);
     });
 
