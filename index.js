@@ -9,15 +9,30 @@ const app = express();
 const port = process.env.PORT || 3000;
 const JWT_SECRET = 'R8g@vQk!7hXp2Fz$5sW&jL3tYpC9BnD^eZ0uI_oA6mM*rE1xQcV4yK_bTfH7dN8a'
 
-const allowedOrigin = 'https://equesheet.com';
+// const allowedOrigin = 'http://localhost:5173';
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://equesheet.com",
+];
 
-const corsConfig = {
-  origin: allowedOrigin,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'Content-Type'],
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS blocked"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Authorization", "Content-Type"],
+  credentials: true,
 };
 
-app.use(cors(corsConfig));
+app.use(cors(corsOptions));
+
+
 
 
 
@@ -82,6 +97,10 @@ async function startServer() {
     app.get('/', (req, res) => {
       res.json({ message: "Server OK" });
     });
+    app.get("/ping", (req, res) => {
+      res.status(200).send("Server is alive 🚀");
+    });
+
 
     // JWT token creation endpoint for login/signup
     app.post('/jwt', async (req, res) => {
