@@ -7,7 +7,7 @@ Express.js + MongoDB REST API server for the **Betar Barishal Quesheet Managemen
 ## 🚀 Live API Base URL
 
 ```
-https://your-server-url.com
+[https://your-server-url.com](https://betar-server.vercel.app/)
 ```
 
 ---
